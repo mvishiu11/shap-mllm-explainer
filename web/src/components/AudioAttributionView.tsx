@@ -33,7 +33,7 @@ export function AudioAttributionView({ audioFile, attributions }: AudioAttributi
   // Get intensity color
   const getIntensityColor = (value: number) => {
     const normalized = (value - minAttr) / (maxAttr - minAttr);
-    
+
     if (normalized > 0.7) return "#ef4444";
     if (normalized > 0.5) return "#fb923c";
     if (normalized > 0.3) return "#facc15";
@@ -92,12 +92,12 @@ export function AudioAttributionView({ audioFile, attributions }: AudioAttributi
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="timeLabel" 
+                  <XAxis
+                    dataKey="timeLabel"
                     label={{ value: 'Time (seconds)', position: 'insideBottom', offset: -5 }}
                   />
                   <YAxis label={{ value: 'Attribution', angle: -90, position: 'insideLeft' }} />
-                  <Tooltip 
+                  <Tooltip
                     content={({ active, payload }) => {
                       if (active && payload && payload[0]) {
                         return (
@@ -119,12 +119,12 @@ export function AudioAttributionView({ audioFile, attributions }: AudioAttributi
                       return null;
                     }}
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="attribution" 
-                    stroke="#3b82f6" 
-                    fillOpacity={1} 
-                    fill="url(#attributionGradient)" 
+                  <Area
+                    type="monotone"
+                    dataKey="attribution"
+                    stroke="#3b82f6"
+                    fillOpacity={1}
+                    fill="url(#attributionGradient)"
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -148,7 +148,7 @@ export function AudioAttributionView({ audioFile, attributions }: AudioAttributi
                   );
                 })}
               </div>
-              
+
               {/* Time markers */}
               <div className="flex justify-between text-xs text-slate-500 px-4">
                 <span>0s</span>

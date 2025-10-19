@@ -124,8 +124,8 @@ export function ModelConfigPanel({ config, onChange }: ModelConfigPanelProps) {
             </div>
           </div>
 
-          <Button 
-            onClick={handleLoadModel} 
+          <Button
+            onClick={handleLoadModel}
             className="w-full"
             disabled={!config.modelPath || isLoading}
           >

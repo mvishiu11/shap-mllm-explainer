@@ -18,7 +18,7 @@ export default function App() {
   const [progress, setProgress] = useState(0);
   const [currentSession, setCurrentSession] = useState<string | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
-  
+
   // Model configuration state
   const [modelConfig, setModelConfig] = useState({
     source: "huggingface",
@@ -48,7 +48,7 @@ export default function App() {
   const handleStartComputation = () => {
     setIsComputing(true);
     setProgress(0);
-    
+
     // Simulate computation progress
     const interval = setInterval(() => {
       setProgress((prev) => {
@@ -81,7 +81,7 @@ export default function App() {
           <h1 className="text-slate-900 dark:text-slate-100">MLLM Shapley Value Explainability</h1>
           <p className="text-slate-500 text-sm">Multi-modal Attribution Analysis Tool</p>
         </div>
-        
+
         <div className="flex items-center gap-4">
           <div className="text-right text-sm">
             <div className="text-slate-600 dark:text-slate-400">
@@ -91,15 +91,15 @@ export default function App() {
               ~{Math.ceil(costEstimate.timeSeconds / 60)}m {costEstimate.timeSeconds % 60}s
             </div>
           </div>
-          
+
           {isComputing ? (
             <Button onClick={handleCancelComputation} variant="destructive" size="sm">
               <Pause className="mr-2 h-4 w-4" />
               Cancel
             </Button>
           ) : (
-            <Button 
-              onClick={handleStartComputation} 
+            <Button
+              onClick={handleStartComputation}
               size="sm"
               disabled={!textInput && !audioFile}
             >
@@ -107,10 +107,10 @@ export default function App() {
               Compute Attribution
             </Button>
           )}
-          
-          <Button 
-            onClick={() => setShowExportDialog(true)} 
-            variant="outline" 
+
+          <Button
+            onClick={() => setShowExportDialog(true)}
+            variant="outline"
             size="sm"
             disabled={!attributions}
           >
@@ -140,7 +140,7 @@ export default function App() {
                 </TabsList>
 
                 <TabsContent value="model" className="mt-4">
-                  <ModelConfigPanel 
+                  <ModelConfigPanel
                     config={modelConfig}
                     onChange={setModelConfig}
                   />
@@ -210,7 +210,7 @@ export default function App() {
                       </AlertDescription>
                     </Alert>
                   )}
-                  
+
                   <VisualizationPanel
                     attributions={attributions}
                     textInput={textInput}

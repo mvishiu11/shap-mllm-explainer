@@ -15,10 +15,10 @@ export function TextAttributionView({ text, attributions, granularity }: TextAtt
 
   // Tokenize text (simple word-based for demo)
   const tokens = text.split(/\s+/).filter(Boolean);
-  
+
   // Normalize attributions to match tokens if needed
   const normalizedAttributions = attributions.slice(0, tokens.length);
-  
+
   // Calculate stats
   const maxAttr = Math.max(...normalizedAttributions);
   const minAttr = Math.min(...normalizedAttributions);
@@ -34,7 +34,7 @@ export function TextAttributionView({ text, attributions, granularity }: TextAtt
   // Color scale for heatmap
   const getHeatmapColor = (value: number) => {
     const normalized = (value - minAttr) / (maxAttr - minAttr);
-    
+
     if (normalized > 0.7) return "bg-red-500 text-white";
     if (normalized > 0.5) return "bg-orange-400 text-white";
     if (normalized > 0.3) return "bg-yellow-400 text-slate-900";
@@ -49,7 +49,7 @@ export function TextAttributionView({ text, attributions, granularity }: TextAtt
 
   const getBarColor = (value: number) => {
     const normalized = (value - minAttr) / (maxAttr - minAttr);
-    
+
     if (normalized > 0.7) return "#ef4444";
     if (normalized > 0.5) return "#fb923c";
     if (normalized > 0.3) return "#facc15";
@@ -116,15 +116,15 @@ export function TextAttributionView({ text, attributions, granularity }: TextAtt
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="token" 
-                    angle={-45} 
-                    textAnchor="end" 
+                  <XAxis
+                    dataKey="token"
+                    angle={-45}
+                    textAnchor="end"
                     height={100}
                     tick={{ fontSize: 11 }}
                   />
                   <YAxis />
-                  <Tooltip 
+                  <Tooltip
                     content={({ active, payload }) => {
                       if (active && payload && payload[0]) {
                         return (

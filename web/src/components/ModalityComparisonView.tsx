@@ -306,20 +306,20 @@ export function ModalityComparisonView({
         <CardContent>
           <div className="space-y-3 text-sm text-slate-700 dark:text-slate-300">
             <p>
-              The <strong>{textPercentage > audioPercentage ? "text" : "audio"}</strong> modality 
+              The <strong>{textPercentage > audioPercentage ? "text" : "audio"}</strong> modality
               contributes more to the model's output, accounting for{" "}
-              <strong>{Math.max(textPercentage, audioPercentage).toFixed(1)}%</strong> of the 
+              <strong>{Math.max(textPercentage, audioPercentage).toFixed(1)}%</strong> of the
               total attribution.
             </p>
             <p>
               {textStats.std > audioStats.std ? (
                 <>
-                  Text attributions show higher variance (σ = {textStats.std.toFixed(4)}), 
+                  Text attributions show higher variance (σ = {textStats.std.toFixed(4)}),
                   suggesting more diverse token-level importance.
                 </>
               ) : (
                 <>
-                  Audio attributions show higher variance (σ = {audioStats.std.toFixed(4)}), 
+                  Audio attributions show higher variance (σ = {audioStats.std.toFixed(4)}),
                   suggesting more diverse temporal importance.
                 </>
               )}

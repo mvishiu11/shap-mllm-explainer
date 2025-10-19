@@ -80,9 +80,9 @@ export function SessionManager({
   const handleExportSession = (session: Session) => {
     const dataStr = JSON.stringify(session, null, 2);
     const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`;
-    
+
     const exportFileDefaultName = `${session.name.replace(/\s+/g, "_")}_${session.id}.json`;
-    
+
     const linkElement = document.createElement("a");
     linkElement.setAttribute("href", dataUri);
     linkElement.setAttribute("download", exportFileDefaultName);

@@ -38,7 +38,7 @@ export function TelemetryDisplay({ isRunning, progress, config }: TelemetryDispl
         const newEvaluations = prev.evaluations + Math.floor(Math.random() * 10 + 5);
         const newCacheHits = prev.cacheHits + Math.floor(Math.random() * 3);
         const newCacheMisses = newEvaluations - newCacheHits;
-        
+
         return {
           evaluations: Math.min(newEvaluations, config.sampleBudget),
           cacheHits: newCacheHits,
@@ -119,7 +119,7 @@ export function TelemetryDisplay({ isRunning, progress, config }: TelemetryDispl
                 </div>
                 <Progress value={progress} />
               </div>
-              
+
               <div>
                 <div className="flex justify-between text-sm mb-2">
                   <span className="text-slate-600 dark:text-slate-400">Evaluations</span>
@@ -127,8 +127,8 @@ export function TelemetryDisplay({ isRunning, progress, config }: TelemetryDispl
                     {stats.evaluations.toLocaleString()} / {config.sampleBudget.toLocaleString()}
                   </span>
                 </div>
-                <Progress 
-                  value={(stats.evaluations / config.sampleBudget) * 100} 
+                <Progress
+                  value={(stats.evaluations / config.sampleBudget) * 100}
                   className="h-2"
                 />
               </div>
@@ -155,7 +155,7 @@ export function TelemetryDisplay({ isRunning, progress, config }: TelemetryDispl
                 {stats.avgEvalTime.toFixed(2)}s
               </div>
             </div>
-            
+
             <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-md">
               <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">
                 Cache Hit Rate
@@ -176,7 +176,7 @@ export function TelemetryDisplay({ isRunning, progress, config }: TelemetryDispl
                 {stats.cacheHits.toLocaleString()}
               </span>
             </div>
-            
+
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">
                 <XCircle className="h-4 w-4 text-red-600" />
@@ -246,16 +246,16 @@ export function TelemetryDisplay({ isRunning, progress, config }: TelemetryDispl
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={performanceHistory}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="time" 
+                  <XAxis
+                    dataKey="time"
                     label={{ value: 'Time (s)', position: 'insideBottom', offset: -5 }}
                   />
                   <YAxis />
                   <Tooltip />
-                  <Line 
-                    type="monotone" 
-                    dataKey="evaluations" 
-                    stroke="#3b82f6" 
+                  <Line
+                    type="monotone"
+                    dataKey="evaluations"
+                    stroke="#3b82f6"
                     strokeWidth={2}
                     dot={false}
                   />

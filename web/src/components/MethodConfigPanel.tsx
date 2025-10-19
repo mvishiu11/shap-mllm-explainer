@@ -20,11 +20,11 @@ interface MethodConfigPanelProps {
 }
 
 export function MethodConfigPanel({ config, onChange, onCostUpdate }: MethodConfigPanelProps) {
-  
+
   // Calculate cost estimate whenever config changes
   useEffect(() => {
     let evaluations = 0;
-    
+
     switch (config.method) {
       case "exact":
         // Factorial complexity
@@ -37,10 +37,10 @@ export function MethodConfigPanel({ config, onChange, onCostUpdate }: MethodConf
         evaluations = Math.floor(config.sampleBudget * 0.8); // Slightly more efficient
         break;
     }
-    
+
     // Assume ~0.5s per evaluation (this would be model-dependent)
     const timeSeconds = Math.floor(evaluations * 0.5);
-    
+
     onCostUpdate({ evaluations, timeSeconds });
   }, [config, onCostUpdate]);
 
@@ -75,7 +75,7 @@ export function MethodConfigPanel({ config, onChange, onCostUpdate }: MethodConf
                 </SelectItem>
               </SelectContent>
             </Select>
-            
+
             {config.method === "exact" && (
               <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md">
                 <p className="text-xs text-amber-900 dark:text-amber-100">
@@ -176,19 +176,19 @@ export function MethodConfigPanel({ config, onChange, onCostUpdate }: MethodConf
             </div>
             {config.method === "exact" && (
               <p>
-                Computes exact Shapley values by evaluating all possible coalitions. 
+                Computes exact Shapley values by evaluating all possible coalitions.
                 Complexity: O(2^n × n). Guarantees accurate attributions.
               </p>
             )}
             {config.method === "permutation-mc" && (
               <p>
-                Approximates Shapley values using random permutation sampling. 
+                Approximates Shapley values using random permutation sampling.
                 Unbiased estimator with variance inversely proportional to sample size.
               </p>
             )}
             {config.method === "neyman-stratified" && (
               <p>
-                Stratified sampling with Neyman allocation for variance reduction. 
+                Stratified sampling with Neyman allocation for variance reduction.
                 More efficient than basic MC for the same sample budget.
               </p>
             )}

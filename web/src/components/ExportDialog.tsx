@@ -80,7 +80,7 @@ export function ExportDialog({ open, onOpenChange, attributions, config }: Expor
     } else if (exportFormat === "csv") {
       // Convert to CSV (simplified)
       let csvContent = "data:text/csv;charset=utf-8,";
-      
+
       if (attributions.text) {
         csvContent += "Text Attributions\n";
         csvContent += "Index,Value\n";
@@ -287,7 +287,7 @@ export function ExportDialog({ open, onOpenChange, attributions, config }: Expor
             <Download className="mr-2 h-4 w-4" />
             Export Data ({exportFormat.toUpperCase()})
           </Button>
-          
+
           {exportOptions.includeVisualizations && (
             <Button
               onClick={handleExportFigures}
