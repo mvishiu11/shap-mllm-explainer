@@ -8,14 +8,14 @@ import { ModalityComparisonView } from "./ModalityComparisonView";
 
 interface VisualizationPanelProps {
   attributions: any;
-  textInput: string;
+  tokens: string[];
   audioFile: File | null;
   granularity: string;
 }
 
 export function VisualizationPanel({
   attributions,
-  textInput,
+  tokens,
   audioFile,
   granularity,
 }: VisualizationPanelProps) {
@@ -55,7 +55,7 @@ export function VisualizationPanel({
 
       <Tabs defaultValue="text" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="text" disabled={!textInput}>
+          <TabsTrigger value="text" disabled={!tokens || tokens.length === 0}>
             <BarChart3 className="h-4 w-4 mr-2" />
             Text Attribution
           </TabsTrigger>
@@ -63,16 +63,16 @@ export function VisualizationPanel({
             <AudioLines className="h-4 w-4 mr-2" />
             Audio Attribution
           </TabsTrigger>
-          <TabsTrigger value="comparison" disabled={!textInput || !audioFile}>
+          <TabsTrigger value="comparison" disabled={!tokens || tokens.length === 0 || !audioFile}>
             <GitCompare className="h-4 w-4 mr-2" />
             Modality Comparison
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="text" className="mt-4">
-          {textInput && (
+          {(tokens && tokens.length !== 0) && (
             <TextAttributionView
-              text={textInput}
+              rawTokens={tokens}
               attributions={attributions.text}
               granularity={granularity}
             />
@@ -89,7 +89,7 @@ export function VisualizationPanel({
         </TabsContent>
 
         <TabsContent value="comparison" className="mt-4">
-          {textInput && audioFile && (
+          {tokens && tokens.length !== 0 && audioFile && (
             <ModalityComparisonView
               textAttributions={attributions.text}
               audioAttributions={attributions.audio}

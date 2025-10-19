@@ -225,6 +225,7 @@ def explain_text(
             tokens = tokens[:min_len]
             token_attributions = token_attributions[:min_len]
 
+        logger.info(f"Token attributions: {token_attributions[:10]}... (total {len(token_attributions)})")
         logger.info(f"Explanation complete. Final Tokens: {len(tokens)}, Attributions: {len(token_attributions)}")
         return tokens, token_attributions
 

@@ -12,30 +12,35 @@ import { Button } from "./components/ui/button";
 import { Progress } from "./components/ui/progress";
 import { Alert, AlertDescription } from "./components/ui/alert";
 import { ExportDialog } from "./components/ExportDialog";
+import { Toaster, toast } from "sonner";
+
+const API_BASE_URL = "http://localhost:8000";
 
 export default function App() {
   const [isComputing, setIsComputing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentSession, setCurrentSession] = useState<string | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [isModelLoaded, setIsModelLoaded] = useState(false);
+  const [realTokens, setRealTokens] = useState<string[]>([]);
 
   // Model configuration state
   const [modelConfig, setModelConfig] = useState({
     source: "huggingface",
-    modelPath: "",
+    modelPath: "microsoft/phi-2",
     device: "cuda",
-    precision: "float16",
+    precision: "bfloat16",
   });
 
   // Input state
-  const [textInput, setTextInput] = useState("");
+  const [textInput, setTextInput] = useState("This is a simple test.");
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [alignment, setAlignment] = useState<any>(null);
 
   // Method configuration state
   const [methodConfig, setMethodConfig] = useState({
     method: "permutation-mc",
-    sampleBudget: 1000,
+    sampleBudget: 128,
     granularity: "token",
     audioGranularity: "segment",
     randomSeed: 42,
@@ -45,27 +50,73 @@ export default function App() {
   const [attributions, setAttributions] = useState<any>(null);
   const [costEstimate, setCostEstimate] = useState({ evaluations: 0, timeSeconds: 0 });
 
-  const handleStartComputation = () => {
+  const handleStartComputation = async () => {
+    if (!isModelLoaded) {
+      toast.error("Please load a model first.");
+      return;
+    }
+    if (!textInput && !audioFile) {
+      toast.warning("Please provide text or audio input.");
+      return;
+    }
+    // For now, we only support text
+    if (!textInput) {
+      toast.warning("Please enter text to explain.");
+      return;
+    }
+    if (audioFile) {
+      toast.warning("Audio-only explanations are not yet supported.");
+      return;
+    }
+
     setIsComputing(true);
     setProgress(0);
+    setAttributions(null); // Clear previous results
+    setRealTokens([]); // Clear previous tokens
+    toast.info("Starting explanation... This may take a moment.");
 
-    // Simulate computation progress
+    // Simulate progress as it's a long task
     const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsComputing(false);
-          // Generate mock attributions
-          setAttributions({
-            text: Array.from({ length: 20 }, () => Math.random()),
-            audio: Array.from({ length: 30 }, () => Math.random()),
-            timestamp: new Date().toISOString(),
-          });
-          return 100;
-        }
-        return prev + 5;
-      });
+      setProgress((prev) => (prev < 90 ? prev + 5 : 90));
     }, 500);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/explain/text`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text_input: textInput,
+          max_evals: methodConfig.sampleBudget, // Use sampleBudget
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Failed to run explanation");
+      }
+
+      toast.success(`Explanation complete in ${data.explanation_time_seconds.toFixed(2)}s`);
+
+      // Set attributions in the structure VisualizationPanel expects
+      // Note: This will show correct values but with MOCK_TOKENS
+      // until VisualizationPanel is updated.
+      setAttributions({
+        text: data.shap_values, // This is the array of numbers
+        audio: null, // No audio explanation
+        timestamp: new Date().toISOString(),
+      });
+      // Store the real tokens, even if they aren't used yet by VisualizationPanel
+      setRealTokens(data.tokens);
+    } catch (error) {
+      console.error("Explanation error:", error);
+      toast.error(`Explanation failed: ${String(error)}`);
+      setAttributions(null);
+    } finally {
+      clearInterval(interval);
+      setProgress(100);
+      setIsComputing(false);
+    }
   };
 
   const handleCancelComputation = () => {
@@ -75,6 +126,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950">
+      <Toaster position="top-right" richColors />
       {/* Header */}
       <div className="fixed top-0 left-0 right-0 h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 z-10 px-6 flex items-center justify-between">
         <div>
@@ -101,7 +153,7 @@ export default function App() {
             <Button
               onClick={handleStartComputation}
               size="sm"
-              disabled={!textInput && !audioFile}
+              disabled={isComputing || (!textInput && !audioFile) || !isModelLoaded}
             >
               <Play className="mr-2 h-4 w-4" />
               Compute Attribution
@@ -143,6 +195,8 @@ export default function App() {
                   <ModelConfigPanel
                     config={modelConfig}
                     onChange={setModelConfig}
+                    isModelLoaded={isModelLoaded}
+                    onModelLoaded={setIsModelLoaded}
                   />
                 </TabsContent>
 
@@ -213,7 +267,7 @@ export default function App() {
 
                   <VisualizationPanel
                     attributions={attributions}
-                    textInput={textInput}
+                    tokens={realTokens}
                     audioFile={audioFile}
                     granularity={methodConfig.granularity}
                   />

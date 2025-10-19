@@ -7,6 +7,9 @@ import { Badge } from "./ui/badge";
 import { Upload, CheckCircle2, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Alert, AlertDescription } from "./ui/alert";
+import { toast } from "sonner";
+
+const API_BASE_URL = "http://localhost:8000";
 
 interface ModelConfigPanelProps {
   config: {
@@ -16,19 +19,60 @@ interface ModelConfigPanelProps {
     precision: string;
   };
   onChange: (config: any) => void;
+  isModelLoaded: boolean;
+  onModelLoaded: (loaded: boolean) => void;
 }
 
-export function ModelConfigPanel({ config, onChange }: ModelConfigPanelProps) {
+export function ModelConfigPanel({ 
+  config, 
+  onChange, 
+  isModelLoaded,
+  onModelLoaded, 
+}: ModelConfigPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const [modelLoaded, setModelLoaded] = useState(false);
+  const [modelLoaded, setModelLoaded] = useState(isModelLoaded);
 
-  const handleLoadModel = () => {
+const handleLoadModel = async () => {
     setIsLoading(true);
-    // Simulate model loading
-    setTimeout(() => {
+    setModelLoaded(false);
+    onModelLoaded(false); // Inform parent
+    toast.info(`Loading model: ${config.modelPath}...`);
+
+    try {
+      // We only support huggingface text models for now
+      if (config.source !== "huggingface") {
+        throw new Error("Only HuggingFace Hub models are supported.");
+      }
+
+      const response = await fetch(`${API_BASE_URL}/models/load`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "text_shap",
+          model_id: config.modelPath,
+          device: config.device,
+          precision: config.precision,
+          trust_remote_code: true, // Required for phi-2 and others
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Failed to load model");
+      }
+
+      toast.success(data.message);
       setIsLoading(false);
-      setModelLoaded(true);
-    }, 2000);
+      setModelLoaded(true); // Internal state
+      onModelLoaded(true); // Inform parent
+    } catch (error) {
+      console.error("Model load error:", error);
+      toast.error(`Model load failed: ${String(error)}`);
+      setIsLoading(false);
+      setModelLoaded(false);
+      onModelLoaded(false);
+    }
   };
 
   return (
@@ -37,7 +81,7 @@ export function ModelConfigPanel({ config, onChange }: ModelConfigPanelProps) {
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             Model Configuration
-            {modelLoaded && (
+            {isModelLoaded && (
               <Badge variant="default" className="bg-green-600">
                 <CheckCircle2 className="h-3 w-3 mr-1" />
                 Loaded
@@ -135,13 +179,13 @@ export function ModelConfigPanel({ config, onChange }: ModelConfigPanelProps) {
                 Loading Model...
               </>
             ) : (
-              <>Load Model</>
+              <>{isModelLoaded ? "Reload Model" : "Load Model"}</>
             )}
           </Button>
         </CardContent>
       </Card>
 
-      {modelLoaded && (
+      {isModelLoaded && (
         <Alert>
           <AlertDescription>
             <div className="space-y-1">

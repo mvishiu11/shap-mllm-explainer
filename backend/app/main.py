@@ -156,9 +156,12 @@ async def api_explain_text(request: ExplainTextRequest, state: dict[str, Any] = 
     try:
         tokens, shap_values_list = explain_text(text_input=request.text_input, model_state=state, max_evals=request.max_evals)
         explanation_time = time.perf_counter() - start_time
+        logger.info(f"Tokens: {tokens} | SHAP Values: {shap_values_list}")
         logger.info(f"Explanation completed in {explanation_time:.4f} seconds.")
 
-        return ExplainTextResponse(tokens=tokens, shap_values=[float(v) for v in shap_values_list], explanation_time_seconds=explanation_time)
+        return ExplainTextResponse(tokens=tokens,
+                                   shap_values=[float(v) for v in shap_values_list],
+                                   explanation_time_seconds=explanation_time)
     except Exception as e:
         logger.exception(f"Text explanation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Text explanation failed: {str(e)}")

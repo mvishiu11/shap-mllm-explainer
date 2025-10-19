@@ -5,16 +5,15 @@ import { useState } from "react";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 
 interface TextAttributionViewProps {
-  text: string;
+  rawTokens: string[];
   attributions: number[];
   granularity: string;
 }
 
-export function TextAttributionView({ text, attributions, granularity }: TextAttributionViewProps) {
+export function TextAttributionView({ rawTokens, attributions, granularity }: TextAttributionViewProps) {
   const [visualizationType, setVisualizationType] = useState<string>("heatmap");
 
-  // Tokenize text (simple word-based for demo)
-  const tokens = text.split(/\s+/).filter(Boolean);
+  const tokens = rawTokens.map(t => t.replace(/Ġ/g, ' '));
 
   // Normalize attributions to match tokens if needed
   const normalizedAttributions = attributions.slice(0, tokens.length);
