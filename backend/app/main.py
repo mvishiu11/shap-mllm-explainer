@@ -41,13 +41,13 @@ async def api_load_model(request: LoadModelRequest):
             logger.info("Clearing previously loaded model...")
             del loaded_model_state["model"], loaded_model_state["processor"]
             loaded_model_state.clear()
-            if torch.cuda.is_available(): torch.cuda.empty_cache()
+            if torch.cuda.is_available(): 
+                torch.cuda.empty_cache()
 
-        actual_model_id = request.model_id if request.mode == "lfm2" else request.text_shap_model_id
+        actual_model_id = request.model_id
         logger.info(f"Loading model for mode '{request.mode}': {actual_model_id}")
 
         start_time = time.perf_counter()
-        # **FIX: Removed use_flash_attention from call**
         model, processor = load_model(
             mode=request.mode, model_id=actual_model_id, device=request.device,
             precision=request.precision, trust_remote_code=request.trust_remote_code
@@ -106,7 +106,8 @@ async def api_predict(
         finally:
             if audio_file: await audio_file.close()
     elif state["mode"] == "text_shap" and audio_file:
-         if audio_file: await audio_file.close()
+        if audio_file:
+            await audio_file.close()
 
     try:
         start_time = time.perf_counter()

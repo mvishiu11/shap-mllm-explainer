@@ -64,23 +64,19 @@ def run_lfm2_prediction(
 
             chat.new_turn("assistant")
             
-            # Use generate_sequential for ASR - note: example doesn't show audio temp/top_k here
+            # Use generate_sequential for ASR
             generation_iterator = model.generate_sequential(
                 **chat, # Pass ChatState directly
-                max_new_tokens=256 # Adjust as needed
+                max_new_tokens=256 
             )
             logger.info("Starting LFM2 sequential generation (ASR)...")
         
         else:
             # --- CHAT MODE (Text-only or Multimodal) ---
             logger.info("Using Chat mode with generate_interleaved.")
-            # Optional: Add a system prompt if desired for chat, like in the example
-            # chat.new_turn("system")
-            # chat.add_text("Respond with interleaved text and audio.")
-            # chat.end_turn()
             
             chat.new_turn("user")
-            # Add audio first if present, then text (matching example structure)
+            # Add audio first if present, then text
             if audio_tensor is not None:
                 chat.add_audio(audio_tensor.cpu(), sample_rate)
             if text:
@@ -93,19 +89,17 @@ def run_lfm2_prediction(
             generation_iterator = model.generate_interleaved(
                 **chat, # Pass ChatState directly
                 max_new_tokens=256,
-                audio_temperature=0.8, # Use parameters from example
-                audio_top_k=64         # Use parameters from example
+                audio_temperature=0.8, 
+                audio_top_k=64         
             )
             logger.info("Starting LFM2 interleaved generation (Chat)...")
 
         # --- Collect generated text tokens ---
         for t in generation_iterator:
-            # Check if t is a tensor and represents a text token (single element)
             if isinstance(t, torch.Tensor) and t.numel() == 1:
                 generated_token_ids.append(t.item())
             elif isinstance(t, torch.Tensor) and t.numel() > 1:
-                 # Ignore audio tokens for this endpoint
-                 pass
+                 pass # Ignore audio tokens
 
         if not generated_token_ids:
             logger.warning("No text tokens were generated.")
@@ -115,9 +109,7 @@ def run_lfm2_prediction(
         text_tokenizer = processor.text
         full_generated_text = text_tokenizer.decode(generated_token_ids, skip_special_tokens=True)
         
-        # Basic cleanup
         full_generated_text = full_generated_text.strip()
-        # Remove potential EOS if not skipped
         if hasattr(text_tokenizer, 'eos_token') and text_tokenizer.eos_token and full_generated_text.endswith(text_tokenizer.eos_token):
              full_generated_text = full_generated_text[:-len(text_tokenizer.eos_token)].rstrip()
 
@@ -135,17 +127,29 @@ def run_text_shap_prediction(
     tokenizer: Any, # Standard HF Tokenizer
     model_device: str
 ) -> str:
-    # (This function remains unchanged)
+    """Runs prediction for standard text models (text_shap mode)."""
     logger.info("Running prediction in text_shap mode.")
-    # ... (rest of the function is the same) ...
     try:
+        # --- FIX: Ensure pad_token is set for models like GPT-2 ---
+        if tokenizer.pad_token is None:
+            logger.warning("Tokenizer pad_token not set. Setting to eos_token.")
+            tokenizer.pad_token = tokenizer.eos_token
+        # --- END FIX ---
+
         inputs = tokenizer(text, return_tensors="pt").to(model_device)
+        
+        # Get IDs after pad_token may have been set
         eos_token_id = tokenizer.eos_token_id
-        pad_token_id = getattr(tokenizer, 'pad_token_id', eos_token_id)
+        pad_token_id = tokenizer.pad_token_id
+
+        # Ensure eos_token_id is not None, which can happen
+        if eos_token_id is None:
+             logger.warning("Tokenizer eos_token_id is None.")
 
         with torch.no_grad():
             predicted_ids = model.generate(
-                **inputs,
+                input_ids=inputs.input_ids,
+                attention_mask=inputs.attention_mask, # --- FIX: Pass attention_mask ---
                 max_new_tokens=50,
                 eos_token_id=eos_token_id,
                 pad_token_id=pad_token_id
@@ -154,7 +158,7 @@ def run_text_shap_prediction(
         input_token_len = inputs["input_ids"].shape[1]
         generated_ids = predicted_ids[:, input_token_len:]
         generated_text = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
-        
+
         logger.info(f"Text model generated text: '{generated_text}'")
         return generated_text.strip()
     except Exception as e:

@@ -7,7 +7,6 @@ class LoadModelRequest(BaseModel):
     """Request body for loading a model."""
     model_id: str = Field(..., description="Hugging Face model ID for LFM2 mode")
     mode: Literal["lfm2", "text_shap"] = Field("lfm2", description="Mode: 'lfm2' for LiquidAI model, 'text_shap' for SHAP demo text model.")
-    text_shap_model_id: str = Field("distilgpt2", description="Model ID for text_shap mode")
     device: str = Field("cuda", description="Device ('cuda', 'cpu', 'mps')")
     precision: str = Field("float16", description="Precision ('float32', 'float16', 'bfloat16', 'int8') - Ignored for LFM2 mode.")
     trust_remote_code: bool = Field(True, description="Trust remote code execution (required for some models like LFM2)")
