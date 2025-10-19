@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # The PostgreSQL Database Service
+  db:
+    image: postgres:16-alpine
+    container_name: shap_db
+    restart: always
+    environment:
+      POSTGRES_USER: user        # You can change this
+      POSTGRES_PASSWORD: password  # CHANGE THIS in production
+      POSTGRES_DB: shap_explainer_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432" # Expose db port to host for local debugging
+    networks:
+      - shap_net
+
+  # The Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: shap_backend
+    restart: always
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+    environment:
+      # This URL is used by the backend to connect to the db
+      # It uses the service name 'db' as the host
+      DATABASE_URL: "postgresql+asyncpg://user:password@db:5432/shap_explainer_db"
+    networks:
+      - shap_net
+    # Uncomment this section if you need GPU access in the container
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+networks:
+  shap_net:
+    driver: bridge
+
+volumes:
+  postgres_data: # This named volume persists database data
