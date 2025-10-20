@@ -1,8 +1,9 @@
-import os
 import logging
-from sqlmodel import SQLModel
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+import os
+
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+from sqlmodel import SQLModel
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +16,7 @@ LOCAL_POSTGRES_URL = "postgresql+asyncpg://user:password@localhost:5432/shap_exp
 DATABASE_URL = os.getenv("DATABASE_URL", LOCAL_POSTGRES_URL)
 
 if DATABASE_URL == LOCAL_POSTGRES_URL:
-    logger.warning(
-        f"DATABASE_URL not set, defaulting to local Docker PG: {LOCAL_POSTGRES_URL}"
-    )
+    logger.warning(f"DATABASE_URL not set, defaulting to local Docker PG: {LOCAL_POSTGRES_URL}")
 else:
     logger.info(f"Connecting to database at host: {DATABASE_URL.split('@')[-1]}")
 
@@ -41,8 +40,6 @@ async def get_session() -> AsyncSession:
     """
     FastAPI dependency to get a new database session for each request.
     """
-    async_session = sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
-    )
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with async_session() as session:
         yield session

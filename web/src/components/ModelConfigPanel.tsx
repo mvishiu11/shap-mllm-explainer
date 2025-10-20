@@ -23,11 +23,11 @@ interface ModelConfigPanelProps {
   onModelLoaded: (loaded: boolean) => void;
 }
 
-export function ModelConfigPanel({ 
-  config, 
-  onChange, 
+export function ModelConfigPanel({
+  config,
+  onChange,
   isModelLoaded,
-  onModelLoaded, 
+  onModelLoaded,
 }: ModelConfigPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [modelLoaded, setModelLoaded] = useState(isModelLoaded);

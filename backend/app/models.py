@@ -1,10 +1,11 @@
 # backend/app/models.py
-from typing import Any, Literal, Optional
 import logging
+from datetime import datetime
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
-from sqlmodel import SQLModel, JSON, Column, Field as SQLModelField
-from datetime import datetime
+from sqlmodel import JSON, Column, SQLModel
+from sqlmodel import Field as SQLModelField
 
 logger = logging.getLogger(__name__)
 
@@ -58,8 +59,9 @@ class SessionBase(SQLModel):
     """
     Base model for a session. Contains all shared fields.
     """
+
     name: str = SQLModelField(index=True)
-    text_input: Optional[str] = None
+    text_input: str | None = None
 
     # Store complex objects as JSON in the database
     model_settings: dict = SQLModelField(default={}, sa_column=Column(JSON))
@@ -71,7 +73,8 @@ class Session(SessionBase, table=True):
     """
     The database table model.
     """
-    id: Optional[int] = SQLModelField(default=None, primary_key=True)
+
+    id: int | None = SQLModelField(default=None, primary_key=True)
     created_at: datetime = SQLModelField(default_factory=datetime.utcnow, nullable=False)
 
 
@@ -79,6 +82,7 @@ class SessionCreate(SessionBase):
     """
     The Pydantic model used when CREATING a session via the API.
     """
+
     pass
 
 
@@ -87,6 +91,7 @@ class SessionRead(SessionBase):
     The Pydantic model used when READING a session from the API.
     Includes fields from the table model.
     """
+
     id: int
     created_at: datetime
 
@@ -95,6 +100,7 @@ class SessionReadList(SQLModel):
     """
     A lightweight model for listing sessions (e.g., in the sidebar).
     """
+
     id: int
     name: str
     created_at: datetime

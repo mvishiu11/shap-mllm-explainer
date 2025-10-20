@@ -28,9 +28,7 @@ router = APIRouter()
 def get_model_state() -> dict[str, Any]:
     """Dependency to check for a loaded model."""
     if not loaded_model_state.get("model"):
-        raise HTTPException(
-            status_code=400, detail="No model loaded. Call POST /models/load first."
-        )
+        raise HTTPException(status_code=400, detail="No model loaded. Call POST /models/load first.")
     return loaded_model_state
 
 
@@ -148,23 +146,17 @@ async def api_predict(
         inference_time = time.perf_counter() - start_time
         logger.info(f"Inference completed in {inference_time:.4f} seconds.")
 
-        return PredictionResponse(
-            generated_text=generated_text, inference_time_seconds=inference_time
-        )
+        return PredictionResponse(generated_text=generated_text, inference_time_seconds=inference_time)
     except Exception as e:
         logger.exception(f"Prediction failed: {e}")
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
 
 @router.post("/explain/text", response_model=ExplainTextResponse)
-async def api_explain_text(
-    request: ExplainTextRequest, state: dict[str, Any] = Depends(get_model_state)
-):
+async def api_explain_text(request: ExplainTextRequest, state: dict[str, Any] = Depends(get_model_state)):
     """Runs text-based SHAP explanation."""
     if state["mode"] != "text_shap":
-        raise HTTPException(
-            status_code=400, detail="SHAP is only available in 'text_shap' mode."
-        )
+        raise HTTPException(status_code=400, detail="SHAP is only available in 'text_shap' mode.")
 
     start_time = time.perf_counter()
     try:
@@ -183,6 +175,4 @@ async def api_explain_text(
         )
     except Exception as e:
         logger.exception(f"Text explanation failed: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Text explanation failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Text explanation failed: {str(e)}")
