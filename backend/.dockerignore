@@ -1,0 +1,39 @@
+# Docker-specific
+Dockerfile
+.dockerignore
+
+# Git
+.git
+.gitignore
+
+# Virtual environment
+.venv/
+venv/
+*.venv
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# IDE files
+.vscode/
+.idea/
+
+# Local env files
+.env
+*.env*
+
+# Test artifacts
+.pytest_cache/
+coverage.xml
+.coverage
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -14,7 +14,7 @@ import { Alert, AlertDescription } from "./components/ui/alert";
 import { ExportDialog } from "./components/ExportDialog";
 import { Toaster, toast } from "sonner";
 
-const API_BASE_URL = "http://localhost:8000/api";
+const API_BASE_URL = "/api";
 
 interface SessionData {
    id: number;

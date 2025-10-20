@@ -9,7 +9,7 @@ import { useState } from "react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { toast } from "sonner";
 
-const API_BASE_URL = "http://localhost:8000/api";
+const API_BASE_URL = "/api";
 
 interface ModelConfigPanelProps {
   config: {

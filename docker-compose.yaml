@@ -7,45 +7,69 @@ services:
     container_name: shap_db
     restart: always
     environment:
-      POSTGRES_USER: user        # You can change this
-      POSTGRES_PASSWORD: password  # CHANGE THIS in production
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
       POSTGRES_DB: shap_explainer_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432" # Expose db port to host for local debugging
     networks:
       - shap_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d shap_explainer_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  # The Backend Service
+  # The Backend API Service
   backend:
     build:
-      context: ./backend
+      context: ./backend # Build from the backend directory
       dockerfile: Dockerfile
     container_name: shap_backend
     restart: always
     depends_on:
-      - db
-    ports:
-      - "8000:8000"
+      db:
+        condition: service_healthy # Wait for db to be healthy
     environment:
-      # This URL is used by the backend to connect to the db
-      # It uses the service name 'db' as the host
+      # Use the 'db' service name as the hostname
       DATABASE_URL: "postgresql+asyncpg://user:password@db:5432/shap_explainer_db"
+      # Add any other backend environment variables if needed
+      # e.g., HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN}
     networks:
       - shap_net
-    # Uncomment this section if you need GPU access in the container
+    # Port 8000 is exposed to other containers on the network,
+    # but not to the host machine. Nginx will access it.
+    expose:
+      - "8000"
+    # Optional GPU configuration (uncomment if needed)
     # deploy:
     #   resources:
     #     reservations:
     #       devices:
     #         - driver: nvidia
-    #           count: 1
+    #           count: all
     #           capabilities: [gpu]
+
+  # The Frontend Service (Nginx)
+  frontend:
+    build:
+      context: ./web # Build from the web directory
+      dockerfile: Dockerfile
+    container_name: shap_frontend
+    restart: always
+    depends_on:
+      - backend # Wait for the backend to be started
+    ports:
+      # Map host port 80 to container port 80
+      # This lets you access the app at http://localhost
+      - "80:80"
+    networks:
+      - shap_net
 
 networks:
   shap_net:
     driver: bridge
 
 volumes:
-  postgres_data: # This named volume persists database data
+  postgres_data:
+    driver: local
