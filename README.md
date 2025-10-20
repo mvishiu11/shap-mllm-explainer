@@ -1,4 +1,4 @@
-# SHAP MUlti-Modal LLM Explainer
+# SHAP Multi-Modal LLM Explainer
 
 To run this application, you need to have Docker and Docker Compose installed on your machine.
 
