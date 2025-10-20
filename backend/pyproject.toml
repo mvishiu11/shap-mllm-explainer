@@ -5,7 +5,7 @@ description = "Backend for the MLLM Shapley Value Explainability App"
 authors = [{ name = "Your Name", email = "your@email.com" }]
 requires-python = ">=3.12"
 dependencies = [
-"fastapi>=0.110.0",
+    "fastapi>=0.110.0",
     "uvicorn[standard]>=0.23.2",
     "python-multipart>=0.0.7",
     "transformers[torch]>=4.38.0",
@@ -19,7 +19,9 @@ dependencies = [
     "liquid-audio>=0.1.0",
     "einops>=0.7.0",
     "bitsandbytes>=0.41.0",
-    # "psycopg2-binary>=2.9.9",
+    "sqlmodel>=0.0.18",
+    "asyncpg>=0.29.0",
+    "psycopg2-binary>=2.9.9",
 ]
 
 [dependency-groups]

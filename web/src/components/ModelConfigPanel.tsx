@@ -9,7 +9,7 @@ import { useState } from "react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { toast } from "sonner";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "http://localhost:8000/api";
 
 interface ModelConfigPanelProps {
   config: {
@@ -44,7 +44,7 @@ const handleLoadModel = async () => {
         throw new Error("Only HuggingFace Hub models are supported.");
       }
 
-      const response = await fetch(`${API_BASE_URL}/models/load`, {
+      const response = await fetch(`${API_BASE_URL}/ml/models/load`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

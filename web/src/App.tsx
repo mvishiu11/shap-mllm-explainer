@@ -14,7 +14,17 @@ import { Alert, AlertDescription } from "./components/ui/alert";
 import { ExportDialog } from "./components/ExportDialog";
 import { Toaster, toast } from "sonner";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "http://localhost:8000/api";
+
+interface SessionData {
+   id: number;
+   name: string;
+   text_input: string | null;
+   model_settings: any;
+   method_settings: any;
+   attributions: any; // This will include { text: number[], audio: any, timestamp: string, tokens?: string[] }
+   created_at: string; // ISO string
+}
 
 export default function App() {
   const [isComputing, setIsComputing] = useState(false);
@@ -81,7 +91,7 @@ export default function App() {
     }, 500);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/explain/text`, {
+      const response = await fetch(`${API_BASE_URL}/ml/explain/text`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -122,6 +132,19 @@ export default function App() {
   const handleCancelComputation = () => {
     setIsComputing(false);
     setProgress(0);
+  };
+
+  const handleLoadSession = (sessionData: SessionData) => {
+    console.log("Loading session:", sessionData); // Debug log
+    setCurrentSession(String(sessionData.id)); // Convert id to string
+    setModelConfig(sessionData.model_settings);
+    setMethodConfig(sessionData.method_settings);
+    setTextInput(sessionData.text_input || "");
+    setAttributions(sessionData.attributions);
+    // Extract tokens from the loaded attributions object
+    setRealTokens(sessionData.attributions?.tokens || []);
+    setIsModelLoaded(true); // Assume loading session implies model is loaded
+    toast.success(`Loaded session: ${sessionData.name}`);
   };
 
   return (
@@ -211,18 +234,12 @@ export default function App() {
                 <TabsContent value="sessions" className="mt-4">
                   <SessionManager
                     currentSession={currentSession}
-                    onSessionLoad={(session) => {
-                      setCurrentSession(session.id);
-                      setModelConfig(session.modelConfig);
-                      setMethodConfig(session.methodConfig);
-                      setTextInput(session.textInput);
-                      setAttributions(session.attributions);
-                    }}
-                    onSessionSave={() => {
-                      // Save current session
-                      const sessionId = `session_${Date.now()}`;
-                      setCurrentSession(sessionId);
-                    }}
+                    onSessionLoad={handleLoadSession}
+                    currentModelConfig={modelConfig}
+                    currentMethodConfig={methodConfig}
+                    currentTextInput={textInput}
+                    currentAttributions={attributions}
+                    currentRealTokens={realTokens}
                   />
                 </TabsContent>
               </Tabs>
