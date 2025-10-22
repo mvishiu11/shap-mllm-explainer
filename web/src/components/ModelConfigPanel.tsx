@@ -56,11 +56,20 @@ const handleLoadModel = async () => {
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.detail || "Failed to load model");
+        // Try to read the error message as text first
+        // This handles Nginx timeouts (504) or other non-JSON errors
+        const errorText = await response.text();
+        let errorDetail = errorText;
+        try {
+          // Try to parse it as JSON in case the backend sent a proper error
+          const errorData = JSON.parse(errorText);
+          errorDetail = errorData.detail || errorText;
+        } catch (e) {}
+        throw new Error(errorDetail || "Failed to load model");
       }
+
+      const data = await response.json();
 
       toast.success(data.message);
       setIsLoading(false);
