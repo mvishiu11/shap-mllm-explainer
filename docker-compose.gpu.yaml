@@ -1,0 +1,8 @@
+services:
+  backend:
+    # Enable CUDA/GPU inside the container
+    gpus: all
+    environment:
+      # Helpful for older setups/runtime detection
+      NVIDIA_VISIBLE_DEVICES: "all"
+      NVIDIA_DRIVER_CAPABILITIES: "compute,utility"
