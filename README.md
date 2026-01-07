@@ -33,7 +33,7 @@ docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml up --build
 Quick verification (after the stack is up):
 
 ```bash
-docker compose exec backend python -c "import torch; print('cuda_available=', torch.cuda.is_available()); print('torch_cuda=', torch.version.cuda)"
+docker compose exec backend uv run python -c "import torch; print('cuda_available=', torch.cuda.is_available()); print('torch_cuda=', torch.version.cuda)"
 ```
 
 If CUDA is still unavailable, verify Docker can see the GPU:

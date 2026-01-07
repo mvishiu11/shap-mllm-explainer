@@ -9,7 +9,7 @@ import { useState } from "react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { toast } from "sonner";
 
-const API_BASE_URL = "/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
 interface ModelConfigPanelProps {
   config: {

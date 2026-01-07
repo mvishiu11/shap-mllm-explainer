@@ -14,7 +14,7 @@ import { Alert, AlertDescription } from "./components/ui/alert";
 import { ExportDialog } from "./components/ExportDialog";
 import { Toaster, toast } from "sonner";
 
-const API_BASE_URL = "/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
 interface SessionData {
    id: number;
@@ -85,9 +85,21 @@ export default function App() {
     setRealTokens([]); // Clear previous tokens
     toast.info("Starting explanation... This may take a moment.");
 
-    // Simulate progress as it's a long task
-    const interval = setInterval(() => {
-      setProgress((prev) => (prev < 90 ? prev + 5 : 90));
+    const jobId = crypto.randomUUID();
+
+    // Poll real backend progress while the request runs.
+    const interval = setInterval(async () => {
+      try {
+        const r = await fetch(`${API_BASE_URL}/ml/progress/${jobId}`);
+        if (!r.ok) return;
+        const p = await r.json();
+        if (typeof p.percent === "number") {
+          // keep a little headroom until final response arrives
+          setProgress(Math.min(99, Math.max(0, Math.floor(p.percent * 100))));
+        }
+      } catch {
+        // ignore polling errors
+      }
     }, 500);
 
     try {
@@ -97,6 +109,7 @@ export default function App() {
         body: JSON.stringify({
           text_input: textInput,
           max_evals: methodConfig.sampleBudget, // Use sampleBudget
+          job_id: jobId,
         }),
       });
 

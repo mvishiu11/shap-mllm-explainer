@@ -33,7 +33,7 @@ interface SessionFull extends SessionListItem {
   attributions: any;
 }
 
-const API_BASE_URL = "/api"; // Use v1 prefix
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api"; // Use v1 prefix
 
 interface SessionManagerProps {
   currentSession: string | null;

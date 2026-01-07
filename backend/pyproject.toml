@@ -12,16 +12,15 @@ dependencies = [
     "torch>=2.1.0",
     "torchaudio>=2.1.0",
     "accelerate>=0.27.0",
-    "shap>=0.44.0",
     "librosa>=0.10.0",
     "soundfile>=0.12.1",
     "scipy>=1.10.0",
     "liquid-audio>=0.1.0",
     "einops>=0.7.0",
-    "bitsandbytes>=0.41.0",
     "sqlmodel>=0.0.18",
     "asyncpg>=0.29.0",
     "psycopg2-binary>=2.9.9",
+    "mllm-shap>=0.1.6",
 ]
 
 [dependency-groups]

@@ -14,15 +14,51 @@ from app.models import (
     loaded_model_state,
 )
 from app.services.explainability import explain_text
+from app.services.progress import get_job
 from app.services.inference import (
     preprocess_audio,
     run_lfm2_prediction,
-    run_text_shap_prediction,
 )
 from app.services.model_loader import load_model
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+@router.get("/diagnostics")
+async def api_diagnostics():
+    model = loaded_model_state.get("model")
+    model_device = None
+    if model is not None:
+        model_device = str(getattr(model, "device", None))
+
+    cuda_available = torch.cuda.is_available()
+    cuda_device_count = torch.cuda.device_count() if cuda_available else 0
+    cuda_name = None
+    if cuda_available and cuda_device_count > 0:
+        try:
+            cuda_name = torch.cuda.get_device_name(0)
+        except Exception:
+            cuda_name = None
+
+    return {
+        "cuda_available": cuda_available,
+        "cuda_device_count": cuda_device_count,
+        "cuda_device_name_0": cuda_name,
+        "torch_version": torch.__version__,
+        "loaded": model is not None,
+        "loaded_model_id": loaded_model_state.get("model_id"),
+        "loaded_device": loaded_model_state.get("device"),
+        "model_device_attr": model_device,
+    }
+
+
+@router.get("/progress/{job_id}")
+async def api_progress(job_id: str):
+    state = get_job(job_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Unknown job_id")
+    return state.to_dict()
 
 
 def get_model_state() -> dict[str, Any]:
@@ -44,9 +80,14 @@ async def api_load_model(request: LoadModelRequest):
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
-        # Use the single model_id field, as per your models.py
+        # Backward compatible: request.mode/model_id are accepted but ignored.
+        # We always load the supported LiquidAudio model through mllm-shap.
         actual_model_id = request.model_id
-        logger.info(f"Loading model for mode '{request.mode}': {actual_model_id}")
+        logger.info(
+            "Loading LiquidAudio model via mllm-shap (requested mode='%s', model_id='%s')",
+            request.mode,
+            actual_model_id,
+        )
 
         start_time = time.perf_counter()
         model, processor = load_model(
@@ -58,33 +99,28 @@ async def api_load_model(request: LoadModelRequest):
         )
         load_time = time.perf_counter() - start_time
 
-        actual_device = "cpu"
-        effective_precision = request.precision
-        try:
-            model_param = next(model.parameters())
-            actual_device = str(model_param.device)
-            if request.mode == "lfm2":
-                effective_precision = str(model_param.dtype).replace("torch.", "")
-        except StopIteration:
-            logger.warning("Model has no parameters, cannot determine device/dtype.")
-            actual_device = request.device
+        actual_device = str(getattr(model, "device", request.device))
+        effective_precision = "default"
 
         loaded_model_state.update(
             {
-                "mode": request.mode,
+                "mode": "lfm2",
                 "model": model,
                 "processor": processor,
-                "model_id": actual_model_id,
+                "model_id": (
+                    f"{getattr(getattr(model, 'config', None), 'repo_id', actual_model_id)}"
+                    f"@{getattr(getattr(model, 'config', None), 'revision', 'unknown')}"
+                ),
                 "device": actual_device,
                 "precision": effective_precision,
             }
         )
 
-        logger.info(f"Model loaded in {load_time:.2f}s. Effective precision: {effective_precision}")
+        logger.info("Model loaded in %.2fs. Device=%s", load_time, actual_device)
         return LoadModelResponse(
-            message=f"Model '{actual_model_id}' loaded in {load_time:.2f}s.",
-            mode=request.mode,
-            loaded_model_id=actual_model_id,
+            message=f"LiquidAudio model loaded in {load_time:.2f}s.",
+            mode="lfm2",
+            loaded_model_id=loaded_model_state["model_id"],
             device=loaded_model_state["device"],
             precision=effective_precision,
         )
@@ -107,7 +143,7 @@ async def api_predict(
     audio_data_tensor: torch.Tensor | None = None
     sample_rate: int | None = None
 
-    if state["mode"] == "lfm2" and audio_file:
+    if audio_file:
         try:
             audio_bytes = await audio_file.read()
             target_sr = 24000
@@ -117,29 +153,16 @@ async def api_predict(
         finally:
             if audio_file:
                 await audio_file.close()
-    elif state["mode"] == "text_shap" and audio_file:
-        if audio_file:
-            await audio_file.close()
 
     try:
         start_time = time.perf_counter()
-        if state["mode"] == "lfm2":
-            generated_text = run_lfm2_prediction(
-                text=text_input,
-                audio_tensor=audio_data_tensor,
-                sample_rate=sample_rate,
-                model=state["model"],
-                processor=state["processor"],
-            )
-        else:  # text_shap mode
-            if text_input is None:
-                raise HTTPException(status_code=400, detail="Text input is required for this mode.")
-            generated_text = run_text_shap_prediction(
-                text=text_input,
-                model=state["model"],
-                tokenizer=state["processor"],
-                model_device=state["device"],
-            )
+        generated_text = run_lfm2_prediction(
+            text=text_input,
+            audio_tensor=audio_data_tensor,
+            sample_rate=sample_rate,
+            model=state["model"],
+            processor=state["processor"],
+        )
 
         preprocess_time = time.perf_counter() - preprocess_start_time
         logger.info(f"Preprocessing completed in {preprocess_time:.4f} seconds.")
@@ -154,9 +177,7 @@ async def api_predict(
 
 @router.post("/explain/text", response_model=ExplainTextResponse)
 async def api_explain_text(request: ExplainTextRequest, state: dict[str, Any] = Depends(get_model_state)):
-    """Runs text-based SHAP explanation."""
-    if state["mode"] != "text_shap":
-        raise HTTPException(status_code=400, detail="SHAP is only available in 'text_shap' mode.")
+    """Runs text explanation using mllm-shap (LiquidAudio only)."""
 
     start_time = time.perf_counter()
     try:
@@ -164,6 +185,7 @@ async def api_explain_text(request: ExplainTextRequest, state: dict[str, Any] = 
             text_input=request.text_input,
             model_state=state,
             max_evals=request.max_evals,
+            job_id=request.job_id,
         )
         explanation_time = time.perf_counter() - start_time
         logger.info(f"Explanation completed in {explanation_time:.4f} seconds.")
