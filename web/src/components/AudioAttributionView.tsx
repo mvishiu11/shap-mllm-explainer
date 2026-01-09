@@ -1,38 +1,112 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from "recharts";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import { Play, Pause } from "lucide-react";
 import { Button } from "./ui/button";
 
 interface AudioAttributionViewProps {
-  audioFile: File;
+  audioFile?: File | null;
   attributions: number[];
 }
 
 export function AudioAttributionView({ audioFile, attributions }: AudioAttributionViewProps) {
   const [visualizationType, setVisualizationType] = useState<string>("timeline");
   const [isPlaying, setIsPlaying] = useState(false);
+  const [durationSeconds, setDurationSeconds] = useState<number | null>(null);
 
-  // Create time-aligned data (assume attributions are evenly distributed over audio duration)
-  // For demo purposes, we'll simulate 30 segments
-  const segments = attributions.slice(0, 30);
-  const timelineData = segments.map((value, idx) => ({
-    time: idx * 0.5, // Each segment is 0.5 seconds
-    timeLabel: `${(idx * 0.5).toFixed(1)}s`,
-    attribution: value,
-    segment: idx,
-  }));
+  const audioUrl = useMemo(() => {
+    if (!audioFile) return null;
+    return URL.createObjectURL(audioFile);
+  }, [audioFile]);
+
+  if (!attributions || attributions.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Audio Attribution</CardTitle>
+          <CardDescription>No audio attributions returned for this run.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {audioUrl ? (
+            <audio controls className="w-full" src={audioUrl} />
+          ) : (
+            <div className="text-sm text-slate-500">No audio file available.</div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const segments = attributions;
+  const effectiveDuration = durationSeconds && durationSeconds > 0 ? durationSeconds : null;
+  const segmentWidthSeconds = effectiveDuration ? effectiveDuration / segments.length : 1;
+  const totalSeconds = effectiveDuration ? effectiveDuration : segments.length;
+
+  const getQuantile = (sorted: number[], q: number) => {
+    if (sorted.length === 0) return 0;
+    const pos = (sorted.length - 1) * q;
+    const base = Math.floor(pos);
+    const rest = pos - base;
+    if (sorted[base + 1] === undefined) return sorted[base];
+    return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
+  };
+
+  const buildDisplaySeries = (values: number[], maxPoints: number) => {
+    const n = values.length;
+    if (n === 0) return [] as Array<{ idx: number; value: number }>;
+
+    // Robust clipping for display only (avoids a single spike making the chart look crazy)
+    const sampleCount = Math.min(2000, n);
+    const sample: number[] = [];
+    if (sampleCount === n) {
+      sample.push(...values);
+    } else {
+      for (let i = 0; i < sampleCount; i++) {
+        const idx = Math.floor((i / (sampleCount - 1)) * (n - 1));
+        sample.push(values[idx]);
+      }
+    }
+    sample.sort((a, b) => a - b);
+    const lo = getQuantile(sample, 0.01);
+    const hi = getQuantile(sample, 0.99);
+    const clamp = (v: number) => Math.min(hi, Math.max(lo, v));
+
+    if (n <= maxPoints) {
+      return values.map((v, idx) => ({ idx, value: clamp(v) }));
+    }
+
+    // Downsample by bucket-averaging.
+    const bucketSize = Math.ceil(n / maxPoints);
+    const out: Array<{ idx: number; value: number }> = [];
+    for (let start = 0; start < n; start += bucketSize) {
+      const end = Math.min(n, start + bucketSize);
+      let sum = 0;
+      for (let i = start; i < end; i++) sum += clamp(values[i]);
+      out.push({ idx: start, value: sum / Math.max(1, end - start) });
+    }
+    return out;
+  };
+
+  const timelineData = useMemo(() => {
+    const display = buildDisplaySeries(segments, 800);
+    return display.map(({ idx, value }) => ({
+      t: effectiveDuration ? idx * segmentWidthSeconds : idx,
+      attribution: value,
+      segment: idx,
+    }));
+  }, [segments, effectiveDuration, segmentWidthSeconds]);
 
   // Calculate stats
   const maxAttr = Math.max(...segments);
   const minAttr = Math.min(...segments);
   const avgAttr = segments.reduce((a, b) => a + b, 0) / segments.length;
+  const range = maxAttr - minAttr;
 
   // Get intensity color
   const getIntensityColor = (value: number) => {
-    const normalized = (value - minAttr) / (maxAttr - minAttr);
+    const normalized = range === 0 ? 0 : (value - minAttr) / range;
 
     if (normalized > 0.7) return "#ef4444";
     if (normalized > 0.5) return "#fb923c";
@@ -66,17 +140,26 @@ export function AudioAttributionView({ audioFile, attributions }: AudioAttributi
               size="sm"
               variant="outline"
               onClick={() => setIsPlaying(!isPlaying)}
+              disabled={!audioUrl}
             >
               {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
             </Button>
             <div className="flex-1">
-              <audio
-                controls
-                className="w-full"
-                src={URL.createObjectURL(audioFile)}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-              />
+              {audioUrl ? (
+                <audio
+                  controls
+                  className="w-full"
+                  src={audioUrl}
+                  onLoadedMetadata={(e) => {
+                    const d = e.currentTarget.duration;
+                    if (Number.isFinite(d) && d > 0) setDurationSeconds(d);
+                  }}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                />
+              ) : (
+                <div className="text-sm text-slate-500">No audio file available.</div>
+              )}
             </div>
           </div>
 
@@ -93,8 +176,11 @@ export function AudioAttributionView({ audioFile, attributions }: AudioAttributi
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
-                    dataKey="timeLabel"
-                    label={{ value: 'Time (seconds)', position: 'insideBottom', offset: -5 }}
+                    dataKey="t"
+                    type="number"
+                    domain={[0, totalSeconds]}
+                    tickFormatter={(v) => (effectiveDuration ? `${Number(v).toFixed(2)}s` : String(v))}
+                    label={{ value: effectiveDuration ? "Time (seconds)" : "Segment", position: "insideBottom", offset: -5 }}
                   />
                   <YAxis label={{ value: 'Attribution', angle: -90, position: 'insideLeft' }} />
                   <Tooltip
@@ -107,7 +193,9 @@ export function AudioAttributionView({ audioFile, attributions }: AudioAttributi
                                 Segment {payload[0].payload.segment}
                               </div>
                               <div className="text-slate-600 dark:text-slate-400">
-                                Time: {payload[0].payload.timeLabel}
+                                {effectiveDuration
+                                  ? `Time: ${Number(payload[0].payload.t).toFixed(2)}s`
+                                  : `Index: ${payload[0].payload.segment}`}
                               </div>
                               <div className="text-slate-600 dark:text-slate-400">
                                 Attribution: {payload[0].value?.toFixed(4)}
@@ -133,17 +221,18 @@ export function AudioAttributionView({ audioFile, attributions }: AudioAttributi
             <div className="space-y-2">
               {/* Waveform-style visualization */}
               <div className="h-[300px] flex items-end gap-1 p-4 bg-slate-50 dark:bg-slate-900 rounded-md border border-slate-200 dark:border-slate-800">
-                {segments.map((value, idx) => {
-                  const height = ((value - minAttr) / (maxAttr - minAttr)) * 100;
+                {buildDisplaySeries(segments, 400).map((item) => {
+                  const denom = range === 0 ? 1 : range;
+                  const height = ((item.value - minAttr) / denom) * 100;
                   return (
                     <div
-                      key={idx}
+                      key={item.idx}
                       className="flex-1 rounded-t transition-all hover:opacity-80 cursor-pointer"
                       style={{
                         height: `${Math.max(height, 5)}%`,
-                        backgroundColor: getIntensityColor(value),
+                        backgroundColor: getIntensityColor(item.value),
                       }}
-                      title={`Segment ${idx}: ${value.toFixed(4)}`}
+                      title={`Segment ${item.idx}: ${segments[item.idx]?.toFixed(4)}`}
                     />
                   );
                 })}
@@ -151,9 +240,11 @@ export function AudioAttributionView({ audioFile, attributions }: AudioAttributi
 
               {/* Time markers */}
               <div className="flex justify-between text-xs text-slate-500 px-4">
-                <span>0s</span>
-                <span>{(segments.length * 0.5 / 2).toFixed(1)}s</span>
-                <span>{(segments.length * 0.5).toFixed(1)}s</span>
+                <span>{effectiveDuration ? "0s" : "0"}</span>
+                <span>
+                  {effectiveDuration ? `${(totalSeconds / 2).toFixed(2)}s` : `${Math.floor(segments.length / 2)}`}
+                </span>
+                <span>{effectiveDuration ? `${totalSeconds.toFixed(2)}s` : `${segments.length - 1}`}</span>
               </div>
             </div>
           )}
@@ -170,7 +261,7 @@ export function AudioAttributionView({ audioFile, attributions }: AudioAttributi
             <div>
               <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Duration</div>
               <div className="text-2xl text-slate-900 dark:text-slate-100">
-                {(segments.length * 0.5).toFixed(1)}s
+                {effectiveDuration ? `${totalSeconds.toFixed(2)}s` : "N/A"}
               </div>
             </div>
             <div>
@@ -206,6 +297,7 @@ export function AudioAttributionView({ audioFile, attributions }: AudioAttributi
         <CardContent>
           <div className="space-y-2">
             {timelineData
+              .slice()
               .sort((a, b) => b.attribution - a.attribution)
               .slice(0, 5)
               .map((item, rank) => (
@@ -219,7 +311,7 @@ export function AudioAttributionView({ audioFile, attributions }: AudioAttributi
                       Segment {item.segment}
                     </span>
                     <span className="text-sm text-slate-500">
-                      ({item.timeLabel})
+                      ({effectiveDuration ? `${item.t.toFixed(2)}s` : `#${item.segment}`})
                     </span>
                   </div>
                   <span className="text-slate-600 dark:text-slate-400">

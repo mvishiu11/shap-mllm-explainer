@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "./components/ui/resizable";
 import { ModelConfigPanel } from "./components/ModelConfigPanel";
@@ -7,11 +7,12 @@ import { MethodConfigPanel } from "./components/MethodConfigPanel";
 import { VisualizationPanel } from "./components/VisualizationPanel";
 import { SessionManager } from "./components/SessionManager";
 import { TelemetryDisplay } from "./components/TelemetryDisplay";
-import { Settings, Play, Pause, History, Download } from "lucide-react";
+import { Settings, Play, Pause, History, Download, SlidersHorizontal } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { Progress } from "./components/ui/progress";
 import { Alert, AlertDescription } from "./components/ui/alert";
 import { ExportDialog } from "./components/ExportDialog";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Toaster, toast } from "sonner";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
@@ -29,6 +30,10 @@ interface SessionData {
 export default function App() {
   const [isComputing, setIsComputing] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState<string | null>(null);
+  const [evalCurrent, setEvalCurrent] = useState<number>(0);
+  const [evalTotal, setEvalTotal] = useState<number | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [currentSession, setCurrentSession] = useState<string | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [isModelLoaded, setIsModelLoaded] = useState(false);
@@ -36,8 +41,8 @@ export default function App() {
 
   // Model configuration state
   const [modelConfig, setModelConfig] = useState({
-    source: "huggingface",
-    modelPath: "microsoft/phi-2",
+    source: "liquid",
+    modelPath: "LiquidAI/LFM2-Audio-1.5B",
     device: "cuda",
     precision: "bfloat16",
   });
@@ -49,16 +54,83 @@ export default function App() {
 
   // Method configuration state
   const [methodConfig, setMethodConfig] = useState({
-    method: "permutation-mc",
-    sampleBudget: 128,
-    granularity: "token",
-    audioGranularity: "segment",
+    method: "neyman-stratified",
+    sampleBudget: 32,
     randomSeed: 42,
   });
+
+  const normalizeModelSettings = (raw: any) => {
+    const modeOrSource = String(raw?.source ?? raw?.mode ?? raw?.model_mode ?? "").trim().toLowerCase();
+    const source = modeOrSource === "hf_text" || modeOrSource === "hf" ? "hf_text" : "liquid";
+
+    return {
+      source,
+      modelPath:
+        source === "hf_text"
+          ? String(raw?.modelPath ?? raw?.model_id ?? raw?.model ?? "microsoft/phi-2")
+          : "LiquidAI/LFM2-Audio-1.5B",
+      device: String(raw?.device ?? "cuda"),
+      precision: String(raw?.precision ?? "bfloat16"),
+    };
+  };
+
+  const normalizeAttributions = (raw: any, fallbackTimestamp?: string) => {
+    const obj = raw && typeof raw === "object" ? raw : {};
+
+    const text =
+      (Array.isArray(obj?.text) ? obj.text : null) ??
+      (Array.isArray(obj?.shap_values) ? obj.shap_values : null) ??
+      (Array.isArray(obj?.shapValues) ? obj.shapValues : null) ??
+      [];
+
+    const audio =
+      (Array.isArray(obj?.audio) ? obj.audio : null) ??
+      (Array.isArray(obj?.audio_shap_values) ? obj.audio_shap_values : null) ??
+      (Array.isArray(obj?.audioShapValues) ? obj.audioShapValues : null) ??
+      [];
+
+    const tokens =
+      (Array.isArray(obj?.tokens) ? obj.tokens : null) ??
+      (Array.isArray(obj?.token_list) ? obj.token_list : null) ??
+      (Array.isArray(obj?.tokenList) ? obj.tokenList : null) ??
+      [];
+
+    const ts =
+      (typeof obj?.timestamp === "string" ? obj.timestamp : null) ??
+      (typeof fallbackTimestamp === "string" ? fallbackTimestamp : null) ??
+      new Date().toISOString();
+
+    return {
+      text,
+      audio,
+      tokens,
+      timestamp: ts,
+    };
+  };
+
+  const normalizeMethodSettings = (raw: any) => {
+    const obj = raw && typeof raw === "object" ? raw : {};
+    const method = typeof obj?.method === "string" && obj.method.length > 0 ? obj.method : "neyman-stratified";
+    const sampleBudgetNum = Number(obj?.sampleBudget ?? obj?.max_evals ?? obj?.maxEvals ?? 32);
+    const randomSeedNum = Number(obj?.randomSeed ?? obj?.random_seed ?? obj?.seed ?? 42);
+    return {
+      method,
+      sampleBudget: Number.isFinite(sampleBudgetNum) ? sampleBudgetNum : 32,
+      randomSeed: Number.isFinite(randomSeedNum) ? randomSeedNum : 42,
+    };
+  };
 
   // Results state
   const [attributions, setAttributions] = useState<any>(null);
   const [costEstimate, setCostEstimate] = useState({ evaluations: 0, timeSeconds: 0 });
+
+  useEffect(() => {
+    if (modelConfig.source === "hf_text" && audioFile) {
+      setAudioFile(null);
+      setAlignment(null);
+      toast.info("Audio input cleared (HF text-only model).", { duration: 2000 });
+    }
+  }, [modelConfig.source]);
 
   const handleStartComputation = async () => {
     if (!isModelLoaded) {
@@ -69,23 +141,22 @@ export default function App() {
       toast.warning("Please provide text or audio input.");
       return;
     }
-    // For now, we only support text
-    if (!textInput) {
-      toast.warning("Please enter text to explain.");
-      return;
-    }
-    if (audioFile) {
-      toast.warning("Audio-only explanations are not yet supported.");
+    if (modelConfig.source === "hf_text" && audioFile) {
+      toast.error("HF text-only model does not support audio input.");
       return;
     }
 
     setIsComputing(true);
     setProgress(0);
+    setProgressMessage(null);
+    setEvalCurrent(0);
+    setEvalTotal(null);
     setAttributions(null); // Clear previous results
     setRealTokens([]); // Clear previous tokens
     toast.info("Starting explanation... This may take a moment.");
 
     const jobId = crypto.randomUUID();
+    setActiveJobId(jobId);
 
     // Poll real backend progress while the request runs.
     const interval = setInterval(async () => {
@@ -97,20 +168,26 @@ export default function App() {
           // keep a little headroom until final response arrives
           setProgress(Math.min(99, Math.max(0, Math.floor(p.percent * 100))));
         }
+        if (typeof p.current === "number") setEvalCurrent(p.current);
+        if (typeof p.total === "number") setEvalTotal(p.total);
+        if (typeof p.message === "string") setProgressMessage(p.message);
       } catch {
         // ignore polling errors
       }
     }, 500);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/ml/explain/text`, {
+      const form = new FormData();
+      if (textInput && textInput.trim().length > 0) form.append("text_input", textInput);
+      if (audioFile) form.append("audio_file", audioFile);
+      form.append("max_evals", String(methodConfig.sampleBudget));
+      form.append("method", methodConfig.method);
+      form.append("random_seed", String(methodConfig.randomSeed));
+      form.append("job_id", jobId);
+
+      const response = await fetch(`${API_BASE_URL}/ml/explain`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text_input: textInput,
-          max_evals: methodConfig.sampleBudget, // Use sampleBudget
-          job_id: jobId,
-        }),
+        body: form,
       });
 
       const data = await response.json();
@@ -126,7 +203,7 @@ export default function App() {
       // until VisualizationPanel is updated.
       setAttributions({
         text: data.shap_values, // This is the array of numbers
-        audio: null, // No audio explanation
+        audio: data.audio_shap_values ?? [],
         timestamp: new Date().toISOString(),
       });
       // Store the real tokens, even if they aren't used yet by VisualizationPanel
@@ -138,31 +215,43 @@ export default function App() {
     } finally {
       clearInterval(interval);
       setProgress(100);
+      setProgressMessage(null);
       setIsComputing(false);
+      setActiveJobId(null);
     }
   };
 
   const handleCancelComputation = () => {
+    if (activeJobId) {
+      fetch(`${API_BASE_URL}/ml/cancel/${activeJobId}`, { method: "POST" }).catch(() => {
+        // best-effort
+      });
+    }
     setIsComputing(false);
     setProgress(0);
+    setProgressMessage(null);
+    setEvalCurrent(0);
+    setEvalTotal(null);
+    setActiveJobId(null);
   };
 
   const handleLoadSession = (sessionData: SessionData) => {
     console.log("Loading session:", sessionData); // Debug log
     setCurrentSession(String(sessionData.id)); // Convert id to string
-    setModelConfig(sessionData.model_settings);
-    setMethodConfig(sessionData.method_settings);
+    setModelConfig(normalizeModelSettings(sessionData.model_settings));
+    setMethodConfig(normalizeMethodSettings(sessionData.method_settings));
     setTextInput(sessionData.text_input || "");
-    setAttributions(sessionData.attributions);
-    // Extract tokens from the loaded attributions object
-    setRealTokens(sessionData.attributions?.tokens || []);
+    const normalizedAttrs = normalizeAttributions(sessionData.attributions, sessionData.created_at);
+    setAttributions(normalizedAttrs);
+    setRealTokens(normalizedAttrs.tokens || []);
     setIsModelLoaded(true); // Assume loading session implies model is loaded
     toast.success(`Loaded session: ${sessionData.name}`);
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-slate-950">
-      <Toaster position="top-right" richColors />
+    <ErrorBoundary onError={(e) => toast.error(`UI crashed: ${e instanceof Error ? e.message : String(e)}`)}>
+      <div className="flex h-screen bg-slate-50 dark:bg-slate-950">
+        <Toaster position="bottom-right" richColors />
       {/* Header */}
       <div className="fixed top-0 left-0 right-0 h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 z-10 px-6 flex items-center justify-between">
         <div>
@@ -220,7 +309,10 @@ export default function App() {
                     <Settings className="h-4 w-4 mr-2" />
                     Model
                   </TabsTrigger>
-                  <TabsTrigger value="method">Method</TabsTrigger>
+                  <TabsTrigger value="method">
+                    <SlidersHorizontal className="h-4 w-4 mr-2" />
+                    Method
+                  </TabsTrigger>
                   <TabsTrigger value="sessions">
                     <History className="h-4 w-4 mr-2" />
                     Sessions
@@ -274,6 +366,7 @@ export default function App() {
                     onAudioChange={setAudioFile}
                     alignment={alignment}
                     onAlignmentChange={setAlignment}
+                    audioEnabled={modelConfig.source !== "hf_text"}
                   />
                 </div>
               </ResizablePanel>
@@ -290,6 +383,12 @@ export default function App() {
                           <span>Computing attributions...</span>
                           <span>{progress}%</span>
                         </div>
+                        <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 mb-2">
+                          <span>{progressMessage || "Working"}</span>
+                          <span>
+                            {evalTotal ? `${evalCurrent.toLocaleString()} / ${evalTotal.toLocaleString()} evals` : `${evalCurrent.toLocaleString()} evals`}
+                          </span>
+                        </div>
                         <Progress value={progress} />
                       </AlertDescription>
                     </Alert>
@@ -299,7 +398,7 @@ export default function App() {
                     attributions={attributions}
                     tokens={realTokens}
                     audioFile={audioFile}
-                    granularity={methodConfig.granularity}
+                    granularity="token"
                   />
                 </div>
               </ResizablePanel>
@@ -314,6 +413,9 @@ export default function App() {
               <TelemetryDisplay
                 isRunning={isComputing}
                 progress={progress}
+                evalCurrent={evalCurrent}
+                evalTotal={evalTotal}
+                progressMessage={progressMessage}
                 config={methodConfig}
               />
             </div>
@@ -326,8 +428,9 @@ export default function App() {
         open={showExportDialog}
         onOpenChange={setShowExportDialog}
         attributions={attributions}
-        config={{ modelConfig, methodConfig }}
+        config={{ modelConfig, methodConfig, tokens: realTokens }}
       />
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }

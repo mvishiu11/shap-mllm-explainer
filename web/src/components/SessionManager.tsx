@@ -231,8 +231,15 @@ export function SessionManager({
           });
 
           if (!response.ok) {
-              const errorData = await response.json();
-              throw new Error(errorData.detail || "Failed to import session");
+          const errorText = await response.text();
+          let detail = errorText;
+          try {
+          const parsed = JSON.parse(errorText);
+          detail = parsed?.detail || parsed?.message || errorText;
+          } catch {
+          // non-JSON error
+          }
+          throw new Error(detail || "Failed to import session");
           }
           const importedSession: SessionFull = await response.json();
           toast.success(`Session imported and saved: ${importedSession.name}`);
@@ -409,29 +416,48 @@ export function SessionManager({
              type="file"
              accept=".json"
              onChange={(e) => {
+               const inputEl = e.currentTarget;
                const file = e.target.files?.[0];
                if (file) {
                  const reader = new FileReader();
                  reader.onload = (event) => {
                    try {
-                     const session = JSON.parse(event.target?.result as string) as SessionFull;
-                     // Validate basic structure? (Optional)
-                     if (session && session.name && session.model_settings && session.method_settings) {
-                        handleImportSession(session); // Call handler to save to backend
-                     } else {
-                        throw new Error("Invalid session file format.");
-                     }
+                         const raw = JSON.parse(event.target?.result as string) as any;
+                         const s = raw?.session ?? raw?.data ?? raw;
+                         const normalized: SessionFull = {
+                           id: Number(s?.id ?? 0),
+                           name: String(s?.name ?? ""),
+                           created_at: String(s?.created_at ?? new Date().toISOString()),
+                           text_input: s?.text_input ?? s?.textInput ?? s?.text ?? null,
+                           model_settings:
+                             s?.model_settings ??
+                             s?.modelSettings ??
+                             s?.model_config ??
+                             s?.modelConfig ??
+                             s?.config?.model_settings ??
+                             {},
+                           method_settings:
+                             s?.method_settings ??
+                             s?.methodSettings ??
+                             s?.method_config ??
+                             s?.methodConfig ??
+                             s?.config?.method_settings ??
+                             {},
+                           attributions: s?.attributions ?? s?.results ?? {},
+                         };
+
+                         handleImportSession(normalized);
                    } catch (error) {
                      console.error("Failed to parse or import session file", error);
                      toast.error(`Import failed: ${String(error)}`);
                    } finally {
                       // Reset file input to allow importing the same file again
-                      if (e.target) e.target.value = '';
+                      inputEl.value = "";
                    }
                  };
                  reader.onerror = () => {
                      toast.error("Failed to read the session file.");
-                     if (e.target) e.target.value = '';
+                     inputEl.value = "";
                  }
                  reader.readAsText(file);
                }

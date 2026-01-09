@@ -1,87 +1,101 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Progress } from "./ui/progress";
-import { Activity, Cpu, Clock, Database, CheckCircle2, XCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Activity, Cpu, Clock, Database } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
 interface TelemetryDisplayProps {
   isRunning: boolean;
   progress: number;
+  evalCurrent: number;
+  evalTotal: number | null;
+  progressMessage: string | null;
   config: {
     method: string;
     sampleBudget: number;
   };
 }
 
-export function TelemetryDisplay({ isRunning, progress, config }: TelemetryDisplayProps) {
-  const [stats, setStats] = useState({
-    evaluations: 0,
-    cacheHits: 0,
-    cacheMisses: 0,
-    avgEvalTime: 0,
-    cpuUsage: 0,
-    gpuUsage: 0,
-    memoryUsage: 0,
+export function TelemetryDisplay({
+  isRunning,
+  progress,
+  evalCurrent,
+  evalTotal,
+  progressMessage,
+  config,
+}: TelemetryDisplayProps) {
+  const [telemetry, setTelemetry] = useState({
+    cpu_percent: 0,
+    ram_percent: 0,
+    process_rss_mb: 0,
+    gpu_util_percent: null as number | null,
+    gpu_mem_used_mb: null as number | null,
+    gpu_mem_total_mb: null as number | null,
   });
 
-  const [performanceHistory, setPerformanceHistory] = useState<
-    Array<{ time: number; evaluations: number; cacheHitRate: number }>
+  const [history, setHistory] = useState<
+    Array<{ time: number; cpu: number; gpu: number | null; ram: number }>
   >([]);
 
-  // Simulate telemetry updates
   useEffect(() => {
     if (!isRunning) return;
 
-    const interval = setInterval(() => {
-      setStats((prev) => {
-        const newEvaluations = prev.evaluations + Math.floor(Math.random() * 10 + 5);
-        const newCacheHits = prev.cacheHits + Math.floor(Math.random() * 3);
-        const newCacheMisses = newEvaluations - newCacheHits;
-
-        return {
-          evaluations: Math.min(newEvaluations, config.sampleBudget),
-          cacheHits: newCacheHits,
-          cacheMisses: newCacheMisses,
-          avgEvalTime: 0.45 + Math.random() * 0.2,
-          cpuUsage: 30 + Math.random() * 40,
-          gpuUsage: 60 + Math.random() * 30,
-          memoryUsage: 45 + Math.random() * 20,
-        };
-      });
-
-      setPerformanceHistory((prev) => {
-        const newEntry = {
-          time: prev.length,
-          evaluations: stats.evaluations,
-          cacheHitRate: stats.cacheHits / (stats.cacheHits + stats.cacheMisses) * 100 || 0,
-        };
-        return [...prev.slice(-20), newEntry];
-      });
+    let alive = true;
+    const interval = setInterval(async () => {
+      try {
+        const r = await fetch(`${API_BASE_URL}/ml/telemetry`);
+        if (!r.ok) return;
+        const t = await r.json();
+        if (!alive) return;
+        setTelemetry({
+          cpu_percent: typeof t.cpu_percent === "number" ? t.cpu_percent : 0,
+          ram_percent: typeof t.ram_percent === "number" ? t.ram_percent : 0,
+          process_rss_mb: typeof t.process_rss_mb === "number" ? t.process_rss_mb : 0,
+          gpu_util_percent: typeof t.gpu_util_percent === "number" ? t.gpu_util_percent : null,
+          gpu_mem_used_mb: typeof t.gpu_mem_used_mb === "number" ? t.gpu_mem_used_mb : null,
+          gpu_mem_total_mb: typeof t.gpu_mem_total_mb === "number" ? t.gpu_mem_total_mb : null,
+        });
+        setHistory((prev) => {
+          const next = {
+            time: prev.length,
+            cpu: typeof t.cpu_percent === "number" ? t.cpu_percent : 0,
+            gpu: typeof t.gpu_util_percent === "number" ? t.gpu_util_percent : null,
+            ram: typeof t.ram_percent === "number" ? t.ram_percent : 0,
+          };
+          return [...prev.slice(-60), next];
+        });
+      } catch {
+        // ignore
+      }
     }, 1000);
 
-    return () => clearInterval(interval);
-  }, [isRunning, config.sampleBudget, stats.cacheHits, stats.cacheMisses, stats.evaluations]);
+    return () => {
+      alive = false;
+      clearInterval(interval);
+    };
+  }, [isRunning]);
 
-  // Reset stats when computation stops
   useEffect(() => {
     if (!isRunning) {
-      setStats({
-        evaluations: 0,
-        cacheHits: 0,
-        cacheMisses: 0,
-        avgEvalTime: 0,
-        cpuUsage: 0,
-        gpuUsage: 0,
-        memoryUsage: 0,
+      setTelemetry({
+        cpu_percent: 0,
+        ram_percent: 0,
+        process_rss_mb: 0,
+        gpu_util_percent: null,
+        gpu_mem_used_mb: null,
+        gpu_mem_total_mb: null,
       });
-      setPerformanceHistory([]);
+      setHistory([]);
     }
   }, [isRunning]);
 
-  const cacheHitRate = stats.cacheHits + stats.cacheMisses > 0
-    ? (stats.cacheHits / (stats.cacheHits + stats.cacheMisses)) * 100
-    : 0;
+  const evalPercent = useMemo(() => {
+    if (!evalTotal || evalTotal <= 0) return 0;
+    return Math.max(0, Math.min(100, (evalCurrent / evalTotal) * 100));
+  }, [evalCurrent, evalTotal]);
 
   return (
     <div className="space-y-4">
@@ -118,17 +132,24 @@ export function TelemetryDisplay({ isRunning, progress, config }: TelemetryDispl
                   <span className="text-slate-900 dark:text-slate-100">{progress}%</span>
                 </div>
                 <Progress value={progress} />
+                {progressMessage && (
+                  <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                    {progressMessage}
+                  </div>
+                )}
               </div>
 
               <div>
                 <div className="flex justify-between text-sm mb-2">
                   <span className="text-slate-600 dark:text-slate-400">Evaluations</span>
                   <span className="text-slate-900 dark:text-slate-100">
-                    {stats.evaluations.toLocaleString()} / {config.sampleBudget.toLocaleString()}
+                    {evalTotal
+                      ? `${evalCurrent.toLocaleString()} / ${evalTotal.toLocaleString()}`
+                      : evalCurrent.toLocaleString()}
                   </span>
                 </div>
                 <Progress
-                  value={(stats.evaluations / config.sampleBudget) * 100}
+                  value={evalPercent}
                   className="h-2"
                 />
               </div>
@@ -148,43 +169,18 @@ export function TelemetryDisplay({ isRunning, progress, config }: TelemetryDispl
         <CardContent className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-md">
-              <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">
-                Avg Eval Time
-              </div>
+              <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">Process RSS</div>
               <div className="text-lg text-slate-900 dark:text-slate-100">
-                {stats.avgEvalTime.toFixed(2)}s
+                {telemetry.process_rss_mb.toFixed(0)} MB
               </div>
             </div>
-
             <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-md">
-              <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">
-                Cache Hit Rate
-              </div>
+              <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">GPU Memory</div>
               <div className="text-lg text-slate-900 dark:text-slate-100">
-                {cacheHitRate.toFixed(1)}%
+                {telemetry.gpu_mem_used_mb != null && telemetry.gpu_mem_total_mb != null
+                  ? `${telemetry.gpu_mem_used_mb.toFixed(0)} / ${telemetry.gpu_mem_total_mb.toFixed(0)} MB`
+                  : "—"}
               </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                <span className="text-slate-600 dark:text-slate-400">Cache Hits</span>
-              </div>
-              <span className="text-slate-900 dark:text-slate-100">
-                {stats.cacheHits.toLocaleString()}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2">
-                <XCircle className="h-4 w-4 text-red-600" />
-                <span className="text-slate-600 dark:text-slate-400">Cache Misses</span>
-              </div>
-              <span className="text-slate-900 dark:text-slate-100">
-                {stats.cacheMisses.toLocaleString()}
-              </span>
             </div>
           </div>
         </CardContent>
@@ -197,43 +193,43 @@ export function TelemetryDisplay({ isRunning, progress, config }: TelemetryDispl
             <Cpu className="h-4 w-4" />
             Resource Usage
           </CardTitle>
-          <CardDescription>(Optional monitoring)</CardDescription>
+          <CardDescription>Live utilization (polled)</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
             <div className="flex justify-between text-sm mb-2">
               <span className="text-slate-600 dark:text-slate-400">CPU Usage</span>
               <span className="text-slate-900 dark:text-slate-100">
-                {stats.cpuUsage.toFixed(1)}%
+                {telemetry.cpu_percent.toFixed(1)}%
               </span>
             </div>
-            <Progress value={stats.cpuUsage} />
+            <Progress value={telemetry.cpu_percent} />
           </div>
 
           <div>
             <div className="flex justify-between text-sm mb-2">
               <span className="text-slate-600 dark:text-slate-400">GPU Usage</span>
               <span className="text-slate-900 dark:text-slate-100">
-                {stats.gpuUsage.toFixed(1)}%
+                {telemetry.gpu_util_percent != null ? `${telemetry.gpu_util_percent.toFixed(1)}%` : "—"}
               </span>
             </div>
-            <Progress value={stats.gpuUsage} />
+            <Progress value={telemetry.gpu_util_percent ?? 0} />
           </div>
 
           <div>
             <div className="flex justify-between text-sm mb-2">
               <span className="text-slate-600 dark:text-slate-400">Memory Usage</span>
               <span className="text-slate-900 dark:text-slate-100">
-                {stats.memoryUsage.toFixed(1)}%
+                {telemetry.ram_percent.toFixed(1)}%
               </span>
             </div>
-            <Progress value={stats.memoryUsage} />
+            <Progress value={telemetry.ram_percent} />
           </div>
         </CardContent>
       </Card>
 
       {/* Performance Timeline */}
-      {performanceHistory.length > 0 && (
+      {history.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -244,7 +240,7 @@ export function TelemetryDisplay({ isRunning, progress, config }: TelemetryDispl
           <CardContent>
             <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={performanceHistory}>
+                <LineChart data={history}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
                     dataKey="time"
@@ -254,8 +250,15 @@ export function TelemetryDisplay({ isRunning, progress, config }: TelemetryDispl
                   <Tooltip />
                   <Line
                     type="monotone"
-                    dataKey="evaluations"
+                    dataKey="cpu"
                     stroke="#3b82f6"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="ram"
+                    stroke="#8b5cf6"
                     strokeWidth={2}
                     dot={false}
                   />

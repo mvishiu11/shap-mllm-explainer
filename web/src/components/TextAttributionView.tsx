@@ -18,6 +18,17 @@ export function TextAttributionView({ rawTokens, attributions, granularity }: Te
   // Normalize attributions to match tokens if needed
   const normalizedAttributions = attributions.slice(0, tokens.length);
 
+  if (tokens.length === 0 || normalizedAttributions.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Text Attribution</CardTitle>
+          <CardDescription>No text attributions available for this run.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
   // Calculate stats
   const maxAttr = Math.max(...normalizedAttributions);
   const minAttr = Math.min(...normalizedAttributions);

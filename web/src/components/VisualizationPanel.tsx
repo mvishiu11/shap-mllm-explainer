@@ -39,8 +39,22 @@ export function VisualizationPanel({
     );
   }
 
+  const hasAudioAttributions = Array.isArray(attributions?.audio) && attributions.audio.length > 0;
+  const hasTextAttributions = Array.isArray(attributions?.text) && attributions.text.length > 0;
+  const computedTime = (() => {
+    try {
+      const ts = typeof attributions?.timestamp === "string" ? attributions.timestamp : null;
+      if (!ts) return "—";
+      const d = new Date(ts);
+      if (!Number.isFinite(d.getTime())) return "—";
+      return d.toLocaleTimeString();
+    } catch {
+      return "—";
+    }
+  })();
+
   return (
-    <div className="h-full">
+    <div className="h-full" id="visualization-export-root">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h3 className="text-slate-900 dark:text-slate-100 mb-1">Attribution Results</h3>
@@ -49,7 +63,7 @@ export function VisualizationPanel({
           </p>
         </div>
         <Badge variant="secondary">
-          Computed: {new Date(attributions.timestamp).toLocaleTimeString()}
+          Computed: {computedTime}
         </Badge>
       </div>
 
@@ -59,18 +73,18 @@ export function VisualizationPanel({
             <BarChart3 className="h-4 w-4 mr-2" />
             Text Attribution
           </TabsTrigger>
-          <TabsTrigger value="audio" disabled={!audioFile}>
+          <TabsTrigger value="audio" disabled={!audioFile && !hasAudioAttributions}>
             <AudioLines className="h-4 w-4 mr-2" />
             Audio Attribution
           </TabsTrigger>
-          <TabsTrigger value="comparison" disabled={!tokens || tokens.length === 0 || !audioFile}>
+          <TabsTrigger value="comparison" disabled={!tokens || tokens.length === 0 || (!audioFile && !hasAudioAttributions)}>
             <GitCompare className="h-4 w-4 mr-2" />
             Modality Comparison
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="text" className="mt-4">
-          {(tokens && tokens.length !== 0) && (
+          {(tokens && tokens.length !== 0) && hasTextAttributions && (
             <TextAttributionView
               rawTokens={tokens}
               attributions={attributions.text}
@@ -80,16 +94,13 @@ export function VisualizationPanel({
         </TabsContent>
 
         <TabsContent value="audio" className="mt-4">
-          {audioFile && (
-            <AudioAttributionView
-              audioFile={audioFile}
-              attributions={attributions.audio}
-            />
+          {(audioFile || hasAudioAttributions) && (
+            <AudioAttributionView audioFile={audioFile} attributions={Array.isArray(attributions?.audio) ? attributions.audio : []} />
           )}
         </TabsContent>
 
         <TabsContent value="comparison" className="mt-4">
-          {tokens && tokens.length !== 0 && audioFile && (
+          {tokens && tokens.length !== 0 && hasTextAttributions && (audioFile || hasAudioAttributions) && (
             <ModalityComparisonView
               textAttributions={attributions.text}
               audioAttributions={attributions.audio}
