@@ -4,12 +4,12 @@ import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { Upload, CheckCircle2, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { CheckCircle2, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { toast } from "sonner";
 
-const API_BASE_URL = "/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
 interface ModelConfigPanelProps {
   config: {
@@ -30,26 +30,33 @@ export function ModelConfigPanel({
   onModelLoaded,
 }: ModelConfigPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const [modelLoaded, setModelLoaded] = useState(isModelLoaded);
 
-const handleLoadModel = async () => {
+  useEffect(() => {
+    // keep internal loading UI consistent if parent toggles loaded state
+    // (e.g., when loading a session)
+    if (!isModelLoaded) setIsLoading(false);
+  }, [isModelLoaded]);
+
+  const handleSourceChange = (value: string) => {
+    const nextModelPath = value === "hf_text" ? "microsoft/phi-2" : "LiquidAI/LFM2-Audio-1.5B";
+    onChange({ ...config, source: value, modelPath: nextModelPath });
+  };
+
+  const handleLoadModel = async () => {
     setIsLoading(true);
-    setModelLoaded(false);
     onModelLoaded(false); // Inform parent
-    toast.info(`Loading model: ${config.modelPath}...`);
+    toast.info(config.source === "hf_text" ? "Loading HF text-only model..." : "Loading LiquidAudio model...");
 
     try {
-      // We only support huggingface text models for now
-      if (config.source !== "huggingface") {
-        throw new Error("Only HuggingFace Hub models are supported.");
-      }
-
       const response = await fetch(`${API_BASE_URL}/ml/models/load`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mode: "text_shap",
-          model_id: config.modelPath,
+          mode: config.source === "hf_text" ? "hf_text" : "lfm2",
+          model_id:
+            config.source === "hf_text"
+              ? (config.modelPath || "microsoft/phi-2")
+              : "LiquidAI/LFM2-Audio-1.5B",
           device: config.device,
           precision: config.precision,
           trust_remote_code: true, // Required for phi-2 and others
@@ -73,13 +80,11 @@ const handleLoadModel = async () => {
 
       toast.success(data.message);
       setIsLoading(false);
-      setModelLoaded(true); // Internal state
       onModelLoaded(true); // Inform parent
     } catch (error) {
       console.error("Model load error:", error);
       toast.error(`Model load failed: ${String(error)}`);
       setIsLoading(false);
-      setModelLoaded(false);
       onModelLoaded(false);
     }
   };
@@ -98,45 +103,38 @@ const handleLoadModel = async () => {
             )}
           </CardTitle>
           <CardDescription>
-            Select and load a transformers-compatible model
+            Load either LiquidAudio (multimodal) or the bundled HF text-only connector (Phi-2 pinned by mllm-shap).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="source">Model Source</Label>
-            <Select
-              value={config.source}
-              onValueChange={(value) => onChange({ ...config, source: value })}
-            >
+            <Select value={config.source} onValueChange={handleSourceChange}>
               <SelectTrigger id="source">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="huggingface">HuggingFace Hub</SelectItem>
-                <SelectItem value="local">Local Files</SelectItem>
+                <SelectItem value="liquid">LiquidAudio (multimodal)</SelectItem>
+                <SelectItem value="hf_text">HF text-only (Phi-2)</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="model-path">
-              {config.source === "huggingface" ? "Model ID" : "Model Path"}
-            </Label>
+            <Label htmlFor="model-path">Model</Label>
             <Input
               id="model-path"
-              placeholder={
-                config.source === "huggingface"
-                  ? "e.g., openai/whisper-large-v3"
-                  : "/path/to/model"
+              value={
+                config.source === "hf_text"
+                  ? (config.modelPath || "microsoft/phi-2")
+                  : "LiquidAI/LFM2-Audio-1.5B"
               }
-              value={config.modelPath}
-              onChange={(e) => onChange({ ...config, modelPath: e.target.value })}
+              disabled
             />
-            {config.source === "local" && (
-              <Button variant="outline" size="sm" className="w-full mt-2">
-                <Upload className="h-4 w-4 mr-2" />
-                Browse Files
-              </Button>
+            {config.source === "hf_text" && (
+              <p className="text-xs text-slate-500">
+                Note: the shipped connector is pinned to a specific Phi-2 revision in `mllm-shap`.
+              </p>
             )}
           </div>
 
@@ -180,7 +178,7 @@ const handleLoadModel = async () => {
           <Button
             onClick={handleLoadModel}
             className="w-full"
-            disabled={!config.modelPath || isLoading}
+            disabled={isLoading}
           >
             {isLoading ? (
               <>
@@ -201,7 +199,7 @@ const handleLoadModel = async () => {
               <div className="flex justify-between text-sm">
                 <span className="text-slate-600 dark:text-slate-400">Model:</span>
                 <span className="text-slate-900 dark:text-slate-100">
-                  {config.modelPath || "N/A"}
+                  {config.source === "hf_text" ? (config.modelPath || "microsoft/phi-2") : "LiquidAI/LFM2-Audio-1.5B"}
                 </span>
               </div>
               <div className="flex justify-between text-sm">

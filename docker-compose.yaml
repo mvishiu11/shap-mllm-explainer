@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # The PostgreSQL Database Service
   db:
@@ -35,22 +33,20 @@ services:
     environment:
       # Use the 'db' service name as the hostname
       DATABASE_URL: "postgresql+asyncpg://user:password@db:5432/shap_explainer_db"
-      # Add any other backend environment variables if needed
-      # e.g., HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN}
+      # Prevent `uv run` from downloading a different CPython at container start
+      UV_PYTHON: "/usr/local/bin/python"
+      LOG_LEVEL: "DEBUG"
     networks:
       - shap_net
-    # Port 8000 is exposed to other containers on the network,
-    # but not to the host machine. Nginx will access it.
     expose:
       - "8000"
-    # Optional GPU configuration (uncomment if needed)
-    # deploy:
-    #   resources:
-    #     reservations:
-    #      devices:
-    #        - driver: nvidia
-    #          count: all
-    #          capabilities: [gpu]
+    # Optional GPU configuration (enable via docker-compose.gpu.yaml)
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
 
   # The Frontend Service (Nginx)
   frontend:
@@ -60,10 +56,11 @@ services:
     container_name: shap_frontend
     restart: always
     depends_on:
-      - backend # Wait for the backend to be started
+      backend:
+        condition: service_healthy
     ports:
       # Map host port 80 to container port 80
-      # This lets you access the app at http://localhost
+      # This allows access to the app at http://localhost
       - "80:80"
     networks:
       - shap_net

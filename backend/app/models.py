@@ -1,4 +1,3 @@
-# backend/app/models.py
 import logging
 from datetime import datetime
 from typing import Any, Literal
@@ -14,18 +13,47 @@ logger = logging.getLogger(__name__)
 class LoadModelRequest(BaseModel):
     """Request body for loading a model."""
 
-    model_id: str = Field(..., description="Hugging Face model ID for LFM2 mode")
-    mode: Literal["lfm2", "text_shap"] = Field("lfm2", description="Mode: 'lfm2' for LiquidAI model, 'text_shap' for SHAP demo text model.")
+    model_id: str = Field(
+        "LiquidAI/LFM2-Audio-1.5B",
+        description=(
+            "Deprecated/ignored. The backend always loads the supported LiquidAudio model shipped in mllm-shap."
+        ),
+    )
+    mode: Literal["lfm2", "hf_text", "text_shap"] = Field(
+        "lfm2",
+        description=(
+            "Supported: 'lfm2' (LiquidAudio multimodal) and 'hf_text' (Transformers text-only). "
+            "'text_shap' is accepted for backward compatibility and maps to 'hf_text'."
+        ),
+    )
     device: str = Field("cuda", description="Device ('cuda', 'cpu', 'mps')")
-    precision: str = Field("float16", description="Precision ('float32', 'float16', 'bfloat16', 'int8') - Ignored for LFM2 mode.")
-    trust_remote_code: bool = Field(True, description="Trust remote code execution (required for some models like LFM2)")
+    precision: str = Field(
+        "float16",
+        description="Precision ('float32', 'float16', 'bfloat16', 'int8') - Ignored for LFM2 mode.",
+    )
+    trust_remote_code: bool = Field(
+        True,
+        description="Trust remote code execution (required for some models like LFM2)",
+    )
 
 
 class ExplainTextRequest(BaseModel):
     """Request body for text explanation."""
 
     text_input: str = Field(..., description="The text input to explain (without special formatting)")
-    max_evals: int = Field(256, description="Number of evaluations for SHAP approximation")
+    max_evals: int = Field(32, description="Number of evaluations for SHAP approximation")
+    method: Literal["permutation-mc", "neyman-stratified", "exact"] = Field(
+        "neyman-stratified",
+        description="SV method selection. Some methods may be placeholders depending on installed mllm-shap version.",
+    )
+    random_seed: int = Field(42, description="Random seed for sampling-based methods")
+    text_granularity: Literal["token", "word", "sentence", "turn"] = Field(
+        "token", description="Requested text granularity (currently token-level output)."
+    )
+    job_id: str | None = Field(
+        None,
+        description="Optional client-provided job id to enable progress polling via GET /api/ml/progress/{job_id}.",
+    )
 
 
 # --- Response Models ---
@@ -47,10 +75,11 @@ class PredictionResponse(BaseModel):
 
 
 class ExplainTextResponse(BaseModel):
-    """Response containing SHAP values for text."""
+    """Response containing SHAP values for user text tokens."""
 
     tokens: list[str]
     shap_values: list[float]
+    audio_shap_values: list[float] | None = None
     explanation_time_seconds: float
 
 

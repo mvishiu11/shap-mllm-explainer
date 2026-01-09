@@ -13,6 +13,7 @@ interface InputPanelProps {
   onAudioChange: (file: File | null) => void;
   alignment: any;
   onAlignmentChange: (alignment: any) => void;
+  audioEnabled?: boolean;
 }
 
 export function InputPanel({
@@ -22,6 +23,7 @@ export function InputPanel({
   onAudioChange,
   alignment,
   onAlignmentChange,
+  audioEnabled = true,
 }: InputPanelProps) {
   const audioInputRef = useRef<HTMLInputElement>(null);
 
@@ -93,6 +95,11 @@ export function InputPanel({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {!audioEnabled && (
+            <div className="text-sm text-slate-600 dark:text-slate-400">
+              Audio input is disabled for the currently selected model.
+            </div>
+          )}
           {!audioFile ? (
             <div>
               <input
@@ -107,6 +114,7 @@ export function InputPanel({
                 variant="outline"
                 className="w-full"
                 onClick={() => audioInputRef.current?.click()}
+                disabled={!audioEnabled}
               >
                 <Upload className="mr-2 h-4 w-4" />
                 Upload Audio File

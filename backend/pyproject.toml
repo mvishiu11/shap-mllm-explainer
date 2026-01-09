@@ -2,7 +2,7 @@
 name = "shap_mllm_explainer_backend"
 version = "0.1.0"
 description = "Backend for the MLLM Shapley Value Explainability App"
-authors = [{ name = "Your Name", email = "your@email.com" }]
+authors = [{ name = "Jakub Muszyński", email = "jakub.m.muszynski@email.com" }]
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.110.0",
@@ -12,16 +12,18 @@ dependencies = [
     "torch>=2.1.0",
     "torchaudio>=2.1.0",
     "accelerate>=0.27.0",
-    "shap>=0.44.0",
     "librosa>=0.10.0",
     "soundfile>=0.12.1",
     "scipy>=1.10.0",
     "liquid-audio>=0.1.0",
     "einops>=0.7.0",
-    "bitsandbytes>=0.41.0",
     "sqlmodel>=0.0.18",
     "asyncpg>=0.29.0",
     "psycopg2-binary>=2.9.9",
+    "mllm-shap==0.1.8",
+    "pydub>=0.25.1",
+    "bitsandbytes>=0.49.1",
+    "psutil>=5.9.8",
 ]
 
 [dependency-groups]

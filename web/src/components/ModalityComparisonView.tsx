@@ -11,6 +11,16 @@ export function ModalityComparisonView({
   textAttributions,
   audioAttributions,
 }: ModalityComparisonViewProps) {
+  if (!textAttributions?.length || !audioAttributions?.length) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Modality Comparison</CardTitle>
+          <CardDescription>Need both text and audio attributions to compare.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
   // Calculate total attribution by modality
   const textTotal = textAttributions.reduce((a, b) => a + Math.abs(b), 0);
   const audioTotal = audioAttributions.reduce((a, b) => a + Math.abs(b), 0);

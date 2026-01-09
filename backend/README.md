@@ -12,10 +12,10 @@ The backend API should now be running and accessible at `http://localhost:8000`.
 curl -X POST http://localhost:8000/api/ml/models/load \
 -H "Content-Type: application/json" \
 -d '{
-    "mode": "text_shap",
-    "model_id": "microsoft/phi-2",
+    "mode": "lfm2",
+    "model_id": "LiquidAI/LFM2-Audio-1.5B",
     "device": "cuda",
-    "precision": "bfloat16",
+    "precision": "float16",
     "trust_remote_code": true
    }'
 ```

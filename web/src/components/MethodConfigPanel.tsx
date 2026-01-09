@@ -11,8 +11,6 @@ interface MethodConfigPanelProps {
   config: {
     method: string;
     sampleBudget: number;
-    granularity: string;
-    audioGranularity: string;
     randomSeed: number;
   };
   onChange: (config: any) => void;
@@ -27,19 +25,19 @@ export function MethodConfigPanel({ config, onChange, onCostUpdate }: MethodConf
 
     switch (config.method) {
       case "exact":
-        // Factorial complexity
-        evaluations = 120; // Example for small inputs
+        // Exact enumerates the coalition space (2^n). We can't know n here, so keep a conservative placeholder.
+        evaluations = 0;
         break;
       case "permutation-mc":
         evaluations = config.sampleBudget;
         break;
       case "neyman-stratified":
-        evaluations = Math.floor(config.sampleBudget * 0.8); // Slightly more efficient
+        evaluations = config.sampleBudget;
         break;
     }
 
-    // Assume ~0.5s per evaluation (this would be model-dependent)
-    const timeSeconds = Math.floor(evaluations * 0.5);
+    // Rough placeholder. Actual runtime depends heavily on model+device+cache.
+    const timeSeconds = evaluations > 0 ? Math.floor(evaluations * 0.5) : 0;
 
     onCostUpdate({ evaluations, timeSeconds });
   }, [config, onCostUpdate]);
@@ -79,7 +77,7 @@ export function MethodConfigPanel({ config, onChange, onCostUpdate }: MethodConf
             {config.method === "exact" && (
               <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md">
                 <p className="text-xs text-amber-900 dark:text-amber-100">
-                  <strong>Note:</strong> Exact SV has factorial complexity. Only suitable for very short inputs {"(<10 tokens)"}.
+                  <strong>Note:</strong> Exact SV enumerates coalitions (≈2^n). Only suitable for very short inputs {"(<=10 tokens)"}.
                 </p>
               </div>
             )}
@@ -88,14 +86,14 @@ export function MethodConfigPanel({ config, onChange, onCostUpdate }: MethodConf
           {config.method !== "exact" && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="sample-budget">Sample Budget</Label>
+                <Label htmlFor="sample-budget">Evaluation Budget</Label>
                 <Badge variant="outline">{config.sampleBudget.toLocaleString()}</Badge>
               </div>
               <Slider
                 id="sample-budget"
-                min={100}
-                max={10000}
-                step={100}
+                min={8}
+                max={512}
+                step={8}
                 value={[config.sampleBudget]}
                 onValueChange={([value]) => onChange({ ...config, sampleBudget: value })}
               />
@@ -120,52 +118,6 @@ export function MethodConfigPanel({ config, onChange, onCostUpdate }: MethodConf
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Attribution Granularity</CardTitle>
-          <CardDescription>
-            Configure attribution units for each modality
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="text-granularity">Text Granularity</Label>
-            <Select
-              value={config.granularity}
-              onValueChange={(value) => onChange({ ...config, granularity: value })}
-            >
-              <SelectTrigger id="text-granularity">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="token">Token Level</SelectItem>
-                <SelectItem value="word">Word Level</SelectItem>
-                <SelectItem value="sentence">Sentence Level</SelectItem>
-                <SelectItem value="turn">Turn Level (Dialogue)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="audio-granularity">Audio Granularity</Label>
-            <Select
-              value={config.audioGranularity}
-              onValueChange={(value) => onChange({ ...config, audioGranularity: value })}
-            >
-              <SelectTrigger id="audio-granularity">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="frame">Frame Level</SelectItem>
-                <SelectItem value="segment">Segment Level (~0.5s)</SelectItem>
-                <SelectItem value="sentence">Sentence Level (aligned)</SelectItem>
-                <SelectItem value="turn">Turn Level (Dialogue)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Method Info */}
       <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-md border border-slate-200 dark:border-slate-700">
         <div className="flex items-start gap-3">
@@ -177,7 +129,7 @@ export function MethodConfigPanel({ config, onChange, onCostUpdate }: MethodConf
             {config.method === "exact" && (
               <p>
                 Computes exact Shapley values by evaluating all possible coalitions.
-                Complexity: O(2^n × n). Guarantees accurate attributions.
+                Complexity: O(2^n × n). Guarantees exact attributions.
               </p>
             )}
             {config.method === "permutation-mc" && (
@@ -189,7 +141,7 @@ export function MethodConfigPanel({ config, onChange, onCostUpdate }: MethodConf
             {config.method === "neyman-stratified" && (
               <p>
                 Stratified sampling with Neyman allocation for variance reduction.
-                More efficient than basic MC for the same sample budget.
+                Often lower-variance than basic MC for the same evaluation budget.
               </p>
             )}
           </div>

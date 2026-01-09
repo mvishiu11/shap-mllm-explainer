@@ -20,10 +20,8 @@ RUN rm -rf ./*
 # Copy the built files from the builder stage
 COPY --from=builder /app/build .
 
-# Copy our custom Nginx configuration
+# Copy custom Nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Expose port 80
 EXPOSE 80
-
-# Nginx is run by the base image's CMD
