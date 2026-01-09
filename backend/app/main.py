@@ -1,4 +1,5 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -6,12 +7,28 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.api import api_router
 from app.db import create_db_and_tables
+from app.services.job_logging import InMemoryJobLogHandler
+
+_log_level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+_log_level = getattr(logging, _log_level_name, logging.INFO)
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=_log_level,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# Capture per-job logs so we can surface mllm_shap internals over the API.
+_job_log_handler = InMemoryJobLogHandler(max_lines=1000)
+_job_log_handler.setLevel(_log_level)
+_job_log_handler.setFormatter(
+    logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+)
+logging.getLogger().addHandler(_job_log_handler)
+
+# Ensure package logs are not silently dropped.
+logging.getLogger("mllm_shap").setLevel(_log_level)
+logging.getLogger("mllm_shap").propagate = True
 
 
 @asynccontextmanager
@@ -20,6 +37,7 @@ async def lifespan(app: FastAPI):
     Run at startup.
     """
     logger.info("Application startup...")
+    logger.info("LOG_LEVEL=%s", _log_level_name)
     logger.info("Initializing database...")
     await create_db_and_tables()
     logger.info("Database initialized.")

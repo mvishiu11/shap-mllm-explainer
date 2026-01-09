@@ -1,4 +1,3 @@
-# backend/app/models.py
 import logging
 from datetime import datetime
 from typing import Any, Literal
@@ -20,11 +19,11 @@ class LoadModelRequest(BaseModel):
             "Deprecated/ignored. The backend always loads the supported LiquidAudio model shipped in mllm-shap."
         ),
     )
-    mode: Literal["lfm2", "text_shap"] = Field(
+    mode: Literal["lfm2", "hf_text", "text_shap"] = Field(
         "lfm2",
         description=(
-            "Only 'lfm2' (LiquidAudio) is supported. "
-            "'text_shap' is accepted for backward compatibility but ignored."
+            "Supported: 'lfm2' (LiquidAudio multimodal) and 'hf_text' (Transformers text-only). "
+            "'text_shap' is accepted for backward compatibility and maps to 'hf_text'."
         ),
     )
     device: str = Field("cuda", description="Device ('cuda', 'cpu', 'mps')")
@@ -42,7 +41,15 @@ class ExplainTextRequest(BaseModel):
     """Request body for text explanation."""
 
     text_input: str = Field(..., description="The text input to explain (without special formatting)")
-    max_evals: int = Field(256, description="Number of evaluations for SHAP approximation")
+    max_evals: int = Field(32, description="Number of evaluations for SHAP approximation")
+    method: Literal["permutation-mc", "neyman-stratified", "exact"] = Field(
+        "neyman-stratified",
+        description="SV method selection. Some methods may be placeholders depending on installed mllm-shap version.",
+    )
+    random_seed: int = Field(42, description="Random seed for sampling-based methods")
+    text_granularity: Literal["token", "word", "sentence", "turn"] = Field(
+        "token", description="Requested text granularity (currently token-level output)."
+    )
     job_id: str | None = Field(
         None,
         description="Optional client-provided job id to enable progress polling via GET /api/ml/progress/{job_id}.",
@@ -72,6 +79,7 @@ class ExplainTextResponse(BaseModel):
 
     tokens: list[str]
     shap_values: list[float]
+    audio_shap_values: list[float] | None = None
     explanation_time_seconds: float
 
 

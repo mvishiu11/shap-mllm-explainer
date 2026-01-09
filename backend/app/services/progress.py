@@ -7,7 +7,7 @@ from typing import Any
 @dataclass
 class ProgressState:
     job_id: str
-    status: str = "running"  # running|done|error
+    status: str = "running"  # running|done|error|cancelled
     current: int = 0
     total: int | None = None
     percent: float = 0.0
@@ -83,3 +83,13 @@ def finish_job(job_id: str, *, message: str | None = None) -> None:
 
 def fail_job(job_id: str, *, error: str, message: str | None = None) -> None:
     update_job(job_id, status="error", error=error, message=message, percent=1.0)
+
+
+def cancel_job(job_id: str, *, message: str | None = None) -> None:
+    update_job(job_id, status="cancelled", message=message or "Cancelled", percent=1.0)
+
+
+def is_cancelled(job_id: str) -> bool:
+    with _lock:
+        state = _states.get(job_id)
+        return state is not None and state.status == "cancelled"
