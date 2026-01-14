@@ -1,0 +1,35 @@
+% Minimal Pandoc LaTeX template for thesis-seminar PDF
+% Intentionally omits \maketitle. The title page and TOC are provided in the Markdown body.
+\documentclass[11pt,a4paper]{article}
+
+\usepackage{hyperref}
+
+% Pandoc-generated lists use \tightlist; define it for custom templates.
+\providecommand{\tightlist}{%
+	\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+% Pandoc may emit \passthrough{...} for inline code.
+\providecommand{\passthrough}[1]{#1}
+
+$for(header-includes)$
+$header-includes$
+$endfor$
+
+\begin{document}
+
+$for(include-before)$
+$include-before$
+$endfor$
+
+$if(toc)$
+\tableofcontents
+\clearpage
+$endif$
+
+$body$
+
+$for(include-after)$
+$include-after$
+$endfor$
+
+\end{document}
